@@ -4,6 +4,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
 import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
 
+const baseHeaders = {
+  'Content-Type': 'application/json',
+}
+
 const pdfjsLib = pdfjs as any;
 pdfjsLib.GlobalWorkerOptions = pdfjsLib.GlobalWorkerOptions || {};
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
@@ -54,19 +58,31 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 }
 
 serve(async (req) => {
+  // Handler OPTIONS pour la compatibilité navigateur
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: baseHeaders });
+  }
+
   try {
+    console.log('Début du traitement de la requête');
     const body = await req.json();
     const { documentId } = body;
 
     if (!documentId) {
-      throw new Error('Document ID is required');
+      console.error('Document ID manquant');
+      return new Response(
+        JSON.stringify({ error: 'Document ID is required' }), 
+        { headers: baseHeaders, status: 400 }
+      );
     }
 
+    console.log('Initialisation du client Supabase');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    console.log('Recherche du document:', documentId);
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
       .select('*')
@@ -74,25 +90,34 @@ serve(async (req) => {
       .single();
 
     if (docError || !document) {
-      throw new Error('Document not found');
+      console.error('Document non trouvé:', docError);
+      return new Response(
+        JSON.stringify({ error: 'Document not found' }), 
+        { headers: baseHeaders, status: 404 }
+      );
     }
 
+    console.log('Téléchargement du fichier:', document.file_path);
     const { data: fileData, error: fileError } = await supabaseClient.storage
       .from('documents')
       .download(document.file_path);
 
     if (fileError) {
+      console.error('Erreur lors du téléchargement:', fileError);
       throw fileError;
     }
 
+    console.log('Mise à jour du statut en processing');
     await supabaseClient
       .from('documents')
       .update({ status: 'processing' })
       .eq('id', documentId);
 
+    console.log('Conversion du PDF en images');
     const pdfBytes = new Uint8Array(await fileData.arrayBuffer());
     const pages = await extractPagesFromPDF(pdfBytes);
 
+    console.log('Mise à jour finale du document');
     await supabaseClient
       .from('documents')
       .update({
@@ -103,20 +128,22 @@ serve(async (req) => {
       })
       .eq('id', documentId);
 
+    console.log('Traitement terminé avec succès');
     return new Response(
       JSON.stringify({ 
         success: true,
         message: `Document processed successfully - ${pages.length} pages analyzed` 
-      })
+      }),
+      { headers: baseHeaders }
     );
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Erreur lors du traitement:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
         details: error.stack
       }),
-      { status: 500 }
+      { headers: baseHeaders, status: 500 }
     );
   }
 });
