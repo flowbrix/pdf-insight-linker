@@ -31,7 +31,6 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
   try {
     console.log('Début de l\'analyse avec Mistral Vision');
-    console.log('URL de l\'image à analyser:', imageUrl);
     
     const mistralApiKey = Deno.env.get("MISTRAL_API");
     if (!mistralApiKey) {
@@ -43,17 +42,12 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    const baseUrl = Deno.env.get('SUPABASE_URL');
     const filePath = imageUrl.substring(imageUrl.indexOf('temp_images/'));
-    console.log('Chemin du fichier extrait:', filePath);
-
-    const { data: publicUrlData } = supabase.storage
-      .from('temp_images')
-      .getPublicUrl(filePath);
-
-    const publicUrl = publicUrlData.publicUrl;
-    console.log('URL publique de l\'image:', publicUrl);
+    const fullUrl = `${baseUrl}/storage/v1/object/public/temp_images/${filePath.split('temp_images/')[1]}`;
     
-    console.log('Envoi de la requête à Mistral API...');
+    console.log('URL complète construite:', fullUrl);
+    
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -72,7 +66,7 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
               },
               {
                 type: "image_url",
-                image_url: publicUrl
+                image_url: fullUrl
               }
             ]
           }
