@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -47,41 +46,18 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "pixtral-large-latest",
+        model: "mistral-large-latest",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Extract the values of the following keys from the document:
-
-LIAISON
-N° AMORCE
-CUVE (also named Emission)
-Section N°
-B.J. N°, B.E. N°, or BU. N° (identify as N° EQUIPEMENT)
-TYPE DE CABLE (can be found as Type Câble)
-FIBRES
-SCENARIO
-N° LONGUEUR (can be found as LG 1)
-METRAGE
-COTE
-N° EXTREMITE
-SEGMENT
-DIAMETRE CABLE
-Machine
-Recette
-Version Plan
-Type activité
-Type de Plan
-title
-
-If there are multiple inputs for a value, use the most accurate one. Structure the output in JSON format.`
+                text: "Extract the values of the following keys from the document: LIAISON, N° AMORCE, CUVE (also named Emission), Section N°, B.J. N°, B.E. N°, or BU. N° (identify as N° EQUIPEMENT), TYPE DE CABLE (can be found as Type Câble), FIBRES, SCENARIO, N° LONGUEUR (can be found as LG 1), METRAGE, COTE, N° EXTREMITE, SEGMENT, DIAMETRE CABLE, Machine, Recette, Version Plan, Type activité, Type de Plan, title. If there are multiple inputs for a value, use the most accurate one. Structure the output in JSON format."
               },
               {
                 type: "image_url",
-                url: imageUrl
+                image_url: imageUrl
               }
             ]
           }
