@@ -7,16 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 
 type Profile = {
   id: string;
@@ -112,16 +102,34 @@ const Navbar = () => {
   };
 
   return (
-    <Sidebar className="relative z-50">
-      <SidebarContent>
-        <SidebarGroup>
-          <div className="flex items-center justify-between px-4 py-2">
-            <Link to="/" className="flex items-center space-x-2">
+    <header className="w-full border-b bg-background">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center gap-8">
+            <Link to="/" className="flex items-center gap-2">
               <Home className="w-5 h-5" />
               <span className="font-bold">ASN DigiSAT</span>
             </Link>
+            
+            {session && (
+              <nav className="hidden md:flex items-center gap-6">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.title}
+                    to={item.url}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.title}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
             {session ? (
-              <div className="flex items-center space-x-4">
+              <>
                 <Avatar>
                   <AvatarFallback>
                     {profile ? getInitials(profile) : "..."}
@@ -131,31 +139,16 @@ const Navbar = () => {
                   <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion
                 </Button>
-              </div>
+              </>
             ) : (
               <Button variant="default" size="sm" onClick={handleLogin}>
                 Se Connecter
               </Button>
             )}
           </div>
-          
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link to={item.url}>
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+        </div>
+      </div>
+    </header>
   );
 };
 
