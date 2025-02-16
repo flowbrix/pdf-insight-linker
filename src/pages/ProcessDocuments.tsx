@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 type DocumentSector = "SAT" | "Embarquement" | "Cable";
@@ -21,6 +22,8 @@ const ProcessDocuments = () => {
   const [selectedType, setSelectedType] = useState<DocumentType>("Qualité");
   const [makeVisible, setMakeVisible] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState(0);
 
   // Réinitialiser l'atelier sélectionné quand le secteur change
   useEffect(() => {
@@ -32,6 +35,7 @@ const ProcessDocuments = () => {
       case "SAT":
         return [
           { id: "repeteur", name: "Répéteur" },
+          { id: "seq", name: "SEQ" },
           { id: "roadm", name: "ROADM" },
           { id: "pteq", name: "PTEQ" },
           { id: "bu", name: "BU" },
@@ -74,6 +78,20 @@ const ProcessDocuments = () => {
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
+    setUploadProgress(0);
+  };
+
+  const simulateProgress = (setter: (value: number) => void, duration: number) => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 5;
+      if (progress >= 90) {
+        clearInterval(interval);
+      } else {
+        setter(progress);
+      }
+    }, duration / 20);
+    return interval;
   };
 
   const handleSubmit = async () => {
@@ -98,8 +116,13 @@ const ProcessDocuments = () => {
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
+    setProcessingProgress(0);
 
     try {
+      // Simuler la progression de l'upload
+      const uploadInterval = simulateProgress(setUploadProgress, 3000);
+
       // 1. Upload du fichier dans le bucket
       const fileExt = selectedFile.name.split('.').pop();
       const filePath = `${crypto.randomUUID()}.${fileExt}`;
@@ -112,7 +135,11 @@ const ProcessDocuments = () => {
         throw uploadError;
       }
 
-      // 2. Créer l'entrée dans la table documents
+      // Upload terminé
+      clearInterval(uploadInterval);
+      setUploadProgress(100);
+
+      // 2. Créer l'entrée dans la table documents avec les métadonnées
       const { data: document, error: documentError } = await supabase
         .from('documents')
         .insert({
@@ -131,22 +158,33 @@ const ProcessDocuments = () => {
         throw documentError;
       }
 
+      // Simuler la progression du traitement
+      const processingInterval = simulateProgress(setProcessingProgress, 5000);
+
       // 3. Déclencher le traitement OCR via une Edge Function
       const { error: processingError } = await supabase.functions.invoke('process-document', {
-        body: { documentId: document?.id }
+        body: { documentId: document.id }
       });
 
       if (processingError) {
         throw processingError;
       }
 
-      toast.success("Document uploadé avec succès et en cours de traitement");
+      // Traitement terminé
+      clearInterval(processingInterval);
+      setProcessingProgress(100);
+
+      toast.success("Document uploadé avec succès et traité");
       
       // Réinitialiser le formulaire
       setSelectedFile(null);
       setSelectedAtelier("");
       setSelectedLiaison("");
       setMakeVisible(false);
+      setTimeout(() => {
+        setUploadProgress(0);
+        setProcessingProgress(0);
+      }, 2000);
     } catch (error) {
       console.error('Erreur:', error);
       toast.error("Erreur lors du traitement du document");
@@ -212,7 +250,7 @@ const ProcessDocuments = () => {
               </SelectTrigger>
               <SelectContent>
                 {currentAteliers.map((atelier) => (
-                  <SelectItem key={atelier.name} value={atelier.id}>
+                  <SelectItem key={atelier.id} value={atelier.id}>
                     {atelier.name}
                   </SelectItem>
                 ))}
@@ -246,6 +284,23 @@ const ProcessDocuments = () => {
               Rendre visible au client
             </Label>
           </div>
+
+          {(uploadProgress > 0 || processingProgress > 0) && (
+            <div className="space-y-2">
+              {uploadProgress > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-sm">Upload du document {uploadProgress}%</Label>
+                  <Progress value={uploadProgress} className="w-full" />
+                </div>
+              )}
+              {processingProgress > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-sm">Traitement du document {processingProgress}%</Label>
+                  <Progress value={processingProgress} className="w-full" />
+                </div>
+              )}
+            </div>
+          )}
 
           <Button 
             onClick={handleSubmit} 
