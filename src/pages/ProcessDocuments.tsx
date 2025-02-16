@@ -246,7 +246,7 @@ const ProcessDocuments = () => {
               <SelectContent>
                 {liaisons?.map((liaison) => (
                   <SelectItem key={liaison.id} value={liaison.id}>
-                    {liaison.reference_code}
+                    {liaison.name}
                   </SelectItem>
                 ))}
               </SelectContent>
