@@ -30,9 +30,11 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
+type Sector = "SAT" | "Embarquement" | "Cable" | "all";
+
 const ViewDocuments = () => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<Sector>("all");
   const itemsPerPage = 10;
 
   const { data: profile } = useQuery({
@@ -67,7 +69,7 @@ const ViewDocuments = () => {
         query = query.eq("client_visible", true);
       }
 
-      if (selectedSector) {
+      if (selectedSector && selectedSector !== "all") {
         query = query.eq("sector", selectedSector);
       }
 
@@ -75,8 +77,7 @@ const ViewDocuments = () => {
       const end = start + itemsPerPage - 1;
 
       const { data, error, count } = await query
-        .range(start, end)
-        .select("*", { count: "exact" });
+        .range(start, end);
 
       if (error) throw error;
 
@@ -113,12 +114,12 @@ const ViewDocuments = () => {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Documents</h1>
-        <Select value={selectedSector || ""} onValueChange={setSelectedSector}>
+        <Select value={selectedSector} onValueChange={(value: Sector) => setSelectedSector(value)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filtrer par secteur" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tous les secteurs</SelectItem>
+            <SelectItem value="all">Tous les secteurs</SelectItem>
             <SelectItem value="SAT">SAT</SelectItem>
             <SelectItem value="Embarquement">Embarquement</SelectItem>
             <SelectItem value="Cable">Cable</SelectItem>
