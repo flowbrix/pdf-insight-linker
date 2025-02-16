@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import FileDropzone from "@/components/FileDropzone";
@@ -18,18 +18,43 @@ const ProcessDocuments = () => {
   const [selectedType, setSelectedType] = useState<"Qualité" | "Mesures" | "Production">("Qualité");
   const [makeVisible, setMakeVisible] = useState(false);
 
-  const { data: ateliers } = useQuery({
-    queryKey: ["ateliers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ateliers")
-        .select("*")
-        .eq("active", true);
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Réinitialiser l'atelier sélectionné quand le secteur change
+  useEffect(() => {
+    setSelectedAtelier("");
+  }, [selectedSector]);
+
+  const getAteliersBySector = (sector: string) => {
+    switch (sector) {
+      case "SAT":
+        return [
+          { id: "repeteur", name: "Répéteur" },
+          { id: "seq", name: "SEQ" },
+          { id: "roadm", name: "ROADM" },
+          { id: "pteq", name: "PTEQ" },
+          { id: "bu", name: "BU" },
+          { id: "ssg", name: "SSG" },
+          { id: "bj", name: "BJ" }
+        ];
+      case "Embarquement":
+        return [
+          { id: "embarquement", name: "Embarquement" }
+        ];
+      case "Cable":
+        return [
+          { id: "devidage", name: "Dévidage Soudure" },
+          { id: "coloration", name: "Coloration" },
+          { id: "mise-sous-tube", name: "Mise sous Tube" },
+          { id: "jonction-tube", name: "Jonction Tube" },
+          { id: "cc", name: "CC" },
+          { id: "isolation", name: "Isolation" },
+          { id: "gaine", name: "Gaine" },
+          { id: "armure", name: "Armure" },
+          { id: "basculement", name: "Basculement" }
+        ];
+      default:
+        return [];
+    }
+  };
 
   const { data: liaisons } = useQuery({
     queryKey: ["liaisons"],
@@ -81,6 +106,8 @@ const ProcessDocuments = () => {
       }
     );
   };
+
+  const currentAteliers = getAteliersBySector(selectedSector);
 
   return (
     <div className="container mx-auto p-6 max-w-3xl">
@@ -136,7 +163,7 @@ const ProcessDocuments = () => {
                 <SelectValue placeholder="Sélectionnez un atelier" />
               </SelectTrigger>
               <SelectContent>
-                {ateliers?.map((atelier) => (
+                {currentAteliers.map((atelier) => (
                   <SelectItem key={atelier.id} value={atelier.id}>
                     {atelier.name}
                   </SelectItem>
