@@ -46,7 +46,7 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-large-latest",
+        model: "pixtral-large-latest",
         messages: [
           {
             role: "user",
