@@ -2,7 +2,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
-import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.min.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,38 +25,10 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
   return extractedPages;
 }
 
-async function convertPDFPageToImage(pdfBytes: Uint8Array): Promise<Uint8Array> {
-  // Initialiser PDF.js
-  const loadingTask = pdfjs.getDocument({ data: pdfBytes });
-  const pdf = await loadingTask.promise;
-  const page = await pdf.getPage(1);
+async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
+  // Convertir directement le PDF en base64
+  const base64PDF = Buffer.from(pdfBytes).toString('base64');
   
-  // Définir une échelle raisonnable pour la conversion
-  const viewport = page.getViewport({ scale: 2.0 });
-  
-  // Créer un canvas pour le rendu
-  const canvas = new OffscreenCanvas(viewport.width, viewport.height);
-  const context = canvas.getContext('2d');
-  
-  if (!context) {
-    throw new Error('Could not get canvas context');
-  }
-
-  // Préparer le canvas pour le rendu
-  const renderContext = {
-    canvasContext: context,
-    viewport: viewport
-  };
-
-  // Rendre la page
-  await page.render(renderContext).promise;
-  
-  // Convertir le canvas en blob
-  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95 });
-  return new Uint8Array(await blob.arrayBuffer());
-}
-
-async function analyzeWithMistralVision(imageBytes: Uint8Array): Promise<any> {
   const response = await fetch("https://api.mistral.ai/v1/vision", {
     method: "POST",
     headers: {
@@ -75,8 +46,8 @@ async function analyzeWithMistralVision(imageBytes: Uint8Array): Promise<any> {
               text: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires."
             },
             {
-              type: "image",
-              data: Buffer.from(imageBytes).toString('base64')
+              type: "application/pdf",
+              data: base64PDF
             }
           ]
         }
@@ -130,8 +101,9 @@ serve(async (req) => {
       throw pdfError;
     }
 
-    // 2. Extraire les 10 premières pages
-    const pdfPages = await extractPagesFromPDF(new Uint8Array(await pdfData.arrayBuffer()));
+    // 2. Extraire les pages
+    const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
+    const pdfPages = await extractPagesFromPDF(pdfBytes);
     console.log(`Extracted ${pdfPages.length} pages from PDF`);
 
     // 3. Pour chaque page
@@ -140,27 +112,13 @@ serve(async (req) => {
       console.log(`Processing page ${pageNumber}`);
 
       try {
-        // Convertir en image
-        const imageBytes = await convertPDFPageToImage(pdfPages[i]);
+        // Analyser directement avec Mistral Vision
+        const analysisResult = await analyzeWithMistralVision(pdfPages[i]);
         
-        // Sauvegarder l'image
-        const imagePath = `${documentId}/${pageNumber}.jpg`;
-        const { error: uploadError } = await supabase.storage
-          .from('document-pages')
-          .upload(imagePath, imageBytes);
-
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        // Analyser avec Mistral Vision
-        const analysisResult = await analyzeWithMistralVision(imageBytes);
-
         // Sauvegarder les résultats
         await supabase.from('document_pages').insert({
           document_id: documentId,
           page_number: pageNumber,
-          image_path: imagePath,
           text_content: JSON.stringify(analysisResult)
         });
 
