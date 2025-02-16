@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { spawn } from "https://deno.land/std@0.177.0/node/child_process.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,12 +21,36 @@ serve(async (req) => {
       throw new Error('Document ID is required')
     }
 
-    console.log('Testing function with document ID:', documentId);
+    console.log('Processing document with ID:', documentId);
+
+    // Créer un processus Python
+    const process = spawn('python3', ['process.py', documentId]);
+
+    let output = '';
+    let error = '';
+
+    // Capturer la sortie standard
+    for await (const chunk of process.stdout) {
+      output += new TextDecoder().decode(chunk);
+    }
+
+    // Capturer les erreurs
+    for await (const chunk of process.stderr) {
+      error += new TextDecoder().decode(chunk);
+    }
+
+    // Attendre la fin du processus
+    const status = await process.status();
+
+    if (!status.success) {
+      throw new Error(`Python process failed: ${error}`);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Test successful with document ID: ${documentId}`
+        message: `Document processed successfully`, 
+        data: output 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
