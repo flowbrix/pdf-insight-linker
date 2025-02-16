@@ -45,9 +45,17 @@ const Navbar = () => {
         .from("profiles")
         .select("*")
         .eq("id", session?.user?.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        // Si aucun profil n'est trouvé, on peut attendre que le trigger le crée
+        // ou rediriger vers la page de connexion
+        toast.error("Erreur: Profil non trouvé");
+        await supabase.auth.signOut();
+        navigate("/auth");
+        return null;
+      }
       return data as Profile;
     },
   });
