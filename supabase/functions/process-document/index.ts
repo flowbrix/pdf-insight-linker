@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import * as pdf2text from "https://deno.land/x/pdf2text@0.1.1/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +29,17 @@ const DATA_KEYS = [
   { name: 'Type activité', alternativeNames: ['Type activité'] },
   { name: 'Type de Plan', alternativeNames: ['Type de Plan'] }
 ]
+
+function findValueForKey(text: string, key: { name: string, alternativeNames: string[] }): string | null {
+  for (const keyName of key.alternativeNames) {
+    const regex = new RegExp(`${keyName}[\\s:]*([^\\n\\r]+)`, 'i');
+    const match = text.match(regex);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -63,17 +75,23 @@ serve(async (req) => {
 
     if (downloadError) throw downloadError
 
-    // 3. Extraire le texte des premières pages (à implémenter avec une bibliothèque OCR)
-    // Pour l'instant, on simule l'extraction avec des données de test
-    const extractedData = DATA_KEYS.map((key, index) => ({
-      key_name: key.name,
-      extracted_value: `Valeur simulée pour ${key.name}`,
-      page_number: Math.floor(index / 5) + 1 // Répartir les données sur les premières pages
-    }))
+    // 3. Extraire le texte du PDF
+    console.log('Début de l\'extraction du texte...')
+    const pdfText = await pdf2text.default(fileData)
+    console.log('Texte extrait :', pdfText.substring(0, 500) + '...') // Log des 500 premiers caractères
 
-    console.log('Données extraites:', extractedData)
+    // 4. Rechercher les valeurs pour chaque clé
+    const extractedData = DATA_KEYS.map(key => {
+      const value = findValueForKey(pdfText, key)
+      console.log(`Recherche de ${key.name}: ${value || 'non trouvé'}`)
+      return {
+        key_name: key.name,
+        extracted_value: value || 'Non trouvé',
+        page_number: 1 // Note: pdf2text ne fournit pas l'information de la page, on met 1 par défaut
+      }
+    })
 
-    // 4. Sauvegarder les données extraites
+    // 5. Sauvegarder les données extraites
     const { error: insertError } = await supabase
       .from('extracted_data')
       .insert(extractedData.map(data => ({
@@ -83,7 +101,7 @@ serve(async (req) => {
 
     if (insertError) throw insertError
 
-    // 5. Mettre à jour le statut du document
+    // 6. Mettre à jour le statut du document
     const { error: updateError } = await supabase
       .from('documents')
       .update({
@@ -95,7 +113,7 @@ serve(async (req) => {
     if (updateError) throw updateError
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, extractedData }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
