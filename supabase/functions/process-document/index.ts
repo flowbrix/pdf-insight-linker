@@ -1,8 +1,7 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
-import { createWorker } from 'https://esm.sh/tesseract.js@4.1.1'
+import { createWorker, createScheduler } from 'https://esm.sh/tesseract.js@4.1.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,21 +43,14 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
 
 async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
-    // Configuration spécifique pour l'environnement Edge Function
-    const worker = await createWorker({
-      // Forcer l'utilisation de WASM sans dépendre du DOM
-      langPath: 'https://raw.githubusercontent.com/naptha/tessdata/gh-pages/4.0.0',
-      gzip: false,
-      workerBlobURL: false,
-      logger: msg => console.log('Tesseract Worker:', msg),
-      errorHandler: err => console.error('Tesseract Error:', err)
-    });
+    const scheduler = createScheduler();
+    const worker = await createWorker();
+    await scheduler.addWorker(worker);
 
+    console.log('Loading language data...');
     await worker.loadLanguage('fra');
+    console.log('Initializing worker...');
     await worker.initialize('fra');
-    await worker.setParameters({
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789°.-_/\\:',
-    });
 
     console.log('Tesseract worker initialized');
 
@@ -79,14 +71,14 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
         height: height * 2
       });
       
-      // Reconnaissance du texte
-      const { data: { text } } = await worker.recognize(pngImage);
+      // Reconnaissance du texte avec le scheduler
+      const { data: { text } } = await scheduler.addJob('recognize', pngImage);
       extractedText += text + '\n';
       console.log(`Extracted text from page ${i + 1}:`, text.substring(0, 200));
     }
     
-    await worker.terminate();
-    console.log('Tesseract worker terminated');
+    await scheduler.terminate();
+    console.log('Tesseract scheduler terminated');
     
     return extractedText;
   } catch (error) {
