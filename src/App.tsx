@@ -11,6 +11,7 @@ import ProcessDocuments from "./pages/ProcessDocuments";
 import ManageUsers from "./pages/ManageUsers";
 import ManageLiaisons from "./pages/ManageLiaisons";
 import ViewDocuments from "./pages/ViewDocuments";
+import Auth from "./pages/Auth";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="documents" element={<ViewDocuments />} />
             <Route path="users" element={<ManageUsers />} />
             <Route path="liaisons" element={<ManageLiaisons />} />
+            <Route path="auth" element={<Auth />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
