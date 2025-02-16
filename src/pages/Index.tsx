@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, Users } from "lucide-react";
@@ -8,7 +7,7 @@ const Index = () => {
     <div className="min-h-[calc(100vh-2rem)] flex flex-col items-center justify-center max-w-5xl mx-auto text-center">
       <div className="space-y-6 animate-fade-up">
         <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
-          PDF Insight Linker
+          ASN DigiSAT
         </h1>
         <p className="mx-auto max-w-[700px] text-gray-500 md:text-xl dark:text-gray-400">
           Optimisez votre flux de traitement documentaire avec notre technologie OCR intelligente. Extrayez, vérifiez et gérez vos documents PDF efficacement.

@@ -115,7 +115,7 @@ const Navbar = () => {
           <div className="flex items-center justify-between px-4 py-2">
             <Link to="/" className="flex items-center space-x-2">
               <Home className="w-5 h-5" />
-              <span className="font-bold">PDF Insight Linker</span>
+              <span className="font-bold">ASN DigiSAT</span>
             </Link>
             {session ? (
               <div className="flex items-center space-x-4">
