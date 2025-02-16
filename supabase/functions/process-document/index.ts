@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -159,11 +158,9 @@ serve(async (req) => {
         });
 
         // Pour chaque paire clé:valeur trouvée
-        const extractedData = analysisResult.choices[0].message.content;
         try {
-          console.log(`Analyse des données extraites de la page ${pageNumber}:`, extractedData);
-          const keyValuePairs = JSON.parse(extractedData);
-          for (const [key, value] of Object.entries(keyValuePairs)) {
+          console.log(`Analyse des données extraites de la page ${pageNumber}:`, analysisResult);
+          for (const [key, value] of Object.entries(analysisResult)) {
             console.log(`Sauvegarde de la paire - Clé: ${key}, Valeur: ${value}`);
             await supabase.from('extracted_data').insert({
               document_id: documentId,
