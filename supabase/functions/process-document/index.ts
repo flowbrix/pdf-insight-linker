@@ -51,16 +51,7 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires."
-              },
-              {
-                type: "image",
-                data: `data:application/pdf;base64,${base64PDF}`
-              }
-            ]
+            content: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires.\n" + base64PDF
           }
         ]
       })
