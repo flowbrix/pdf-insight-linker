@@ -15,7 +15,7 @@ const Index = () => {
   });
 
   return (
-    <div className="min-h-[calc(100vh-2rem)] flex flex-col items-center justify-center max-w-5xl mx-auto text-center">
+    <div className="p-6 min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center max-w-5xl mx-auto text-center">
       <div className="space-y-6 animate-fade-up">
         <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
           ASN DigiSAT

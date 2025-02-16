@@ -7,12 +7,10 @@ const Layout = () => {
   return (
     <div className="min-h-screen flex flex-col w-full bg-background">
       <SidebarProvider>
-        <div className="flex flex-col w-full">
-          <Navbar />
-          <main className="flex-1 p-6">
-            <Outlet />
-          </main>
-        </div>
+        <Navbar />
+        <main className="flex-1">
+          <Outlet />
+        </main>
       </SidebarProvider>
     </div>
   );
