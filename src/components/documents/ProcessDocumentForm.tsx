@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import FileDropzone from "@/components/FileDropzone";
 import ProgressIndicators from "./ProgressIndicators";
+import { processDocument } from "@/services/documentService";
 
 export type DocumentSector = "SAT" | "Embarquement" | "Cable";
 export type DocumentType = "Qualité" | "Mesures" | "Production";
@@ -94,7 +94,6 @@ const ProcessDocumentForm = () => {
         onProcessingProgress: setProcessingProgress,
       });
 
-      // Réinitialiser le formulaire
       setSelectedFile(null);
       setSelectedAtelier("");
       setSelectedLiaison("");
