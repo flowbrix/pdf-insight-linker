@@ -10,12 +10,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+type DocumentSector = "SAT" | "Embarquement" | "Cable";
+type DocumentType = "Qualité" | "Mesures" | "Production";
+
 const ProcessDocuments = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedAtelier, setSelectedAtelier] = useState<string>("");
   const [selectedLiaison, setSelectedLiaison] = useState<string>("");
-  const [selectedSector, setSelectedSector] = useState<"SAT" | "Embarquement" | "Cable">("SAT");
-  const [selectedType, setSelectedType] = useState<"Qualité" | "Mesures" | "Production">("Qualité");
+  const [selectedSector, setSelectedSector] = useState<DocumentSector>("SAT");
+  const [selectedType, setSelectedType] = useState<DocumentType>("Qualité");
   const [makeVisible, setMakeVisible] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -24,7 +27,7 @@ const ProcessDocuments = () => {
     setSelectedAtelier("");
   }, [selectedSector]);
 
-  const getAteliersBySector = (sector: string) => {
+  const getAteliersBySector = (sector: DocumentSector) => {
     switch (sector) {
       case "SAT":
         return [
@@ -129,7 +132,7 @@ const ProcessDocuments = () => {
         throw documentError;
       }
 
-      // 3. Déclencher le traitement OCR via une Edge Function (à implémenter)
+      // 3. Déclencher le traitement OCR via une Edge Function
       const { error: processingError } = await supabase.functions.invoke('process-document', {
         body: { documentId: document.id }
       });
@@ -175,7 +178,7 @@ const ProcessDocuments = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="sector">Secteur</Label>
-              <Select value={selectedSector} onValueChange={setSelectedSector}>
+              <Select value={selectedSector} onValueChange={(value: DocumentSector) => setSelectedSector(value)}>
                 <SelectTrigger id="sector">
                   <SelectValue placeholder="Sélectionnez un secteur" />
                 </SelectTrigger>
@@ -189,7 +192,7 @@ const ProcessDocuments = () => {
 
             <div className="space-y-2">
               <Label htmlFor="type">Type de Document</Label>
-              <Select value={selectedType} onValueChange={setSelectedType}>
+              <Select value={selectedType} onValueChange={(value: DocumentType) => setSelectedType(value)}>
                 <SelectTrigger id="type">
                   <SelectValue placeholder="Sélectionnez un type" />
                 </SelectTrigger>
