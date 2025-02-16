@@ -2,10 +2,45 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
+import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): Promise<Uint8Array> {
+  // Initialiser PDF.js
+  const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
+  const page = await pdf.getPage(pageNumber);
+  
+  // Définir une échelle raisonnable pour la conversion
+  const scale = 2.0;
+  const viewport = page.getViewport({ scale });
+  
+  // Créer un canvas pour le rendu
+  const canvas = new OffscreenCanvas(viewport.width, viewport.height);
+  const context = canvas.getContext('2d');
+  
+  if (!context) {
+    throw new Error('Impossible de créer le contexte 2D');
+  }
+  
+  // Préparer le canvas
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  
+  // Rendre la page
+  const renderContext = {
+    canvasContext: context,
+    viewport: viewport,
+  };
+  
+  await page.render(renderContext).promise;
+  
+  // Convertir le canvas en blob JPG
+  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10): Promise<Uint8Array[]> {
@@ -17,12 +52,9 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
   
   const extractedPages: Uint8Array[] = [];
   for (let i = 0; i < totalPages; i++) {
-    const newPdf = await PDFDocument.create();
-    const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-    newPdf.addPage(copiedPage);
-    const pageBytes = await newPdf.save();
-    extractedPages.push(pageBytes);
-    console.log(`Page ${i + 1} extraite avec succès`);
+    const pageImage = await convertPDFPageToImage(pdfBytes, i + 1);
+    extractedPages.push(pageImage);
+    console.log(`Page ${i + 1} convertie en image avec succès`);
   }
   
   return extractedPages;
@@ -133,28 +165,28 @@ serve(async (req) => {
       throw pdfError;
     }
 
-    // 2. Extraire les pages
+    // 2. Extraire et convertir les pages en images
     console.log('Conversion du PDF en bytes...');
     const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
-    const pdfPages = await extractPagesFromPDF(pdfBytes);
-    console.log(`Extraction réussie de ${pdfPages.length} pages du PDF`);
+    const pageImages = await extractPagesFromPDF(pdfBytes);
+    console.log(`Conversion réussie de ${pageImages.length} pages en images`);
 
     // 3. Pour chaque page
     const baseUrl = Deno.env.get('SUPABASE_URL');
-    for (let i = 0; i < pdfPages.length; i++) {
+    for (let i = 0; i < pageImages.length; i++) {
       const pageNumber = i + 1;
       console.log(`Début du traitement de la page ${pageNumber}`);
 
       try {
         // Générer un nom de fichier unique pour l'image
-        const imagePath = `${documentId}/${pageNumber}.pdf`;
+        const imagePath = `${documentId}/${pageNumber}.jpg`;
         console.log(`Uploading page ${pageNumber} vers ${imagePath}`);
 
-        // Upload de la page PDF
+        // Upload de l'image JPG
         const { error: uploadError } = await supabase.storage
           .from('temp_images')
-          .upload(imagePath, pdfPages[i], {
-            contentType: 'application/pdf',
+          .upload(imagePath, pageImages[i], {
+            contentType: 'image/jpeg',
             upsert: true
           });
 
@@ -206,7 +238,7 @@ serve(async (req) => {
         status: 'completed',
         processed: true,
         processed_at: new Date().toISOString(),
-        total_pages: pdfPages.length
+        total_pages: pageImages.length
       })
       .eq('id', documentId);
 
@@ -214,7 +246,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Document processed successfully - ${pdfPages.length} pages analyzed`
+        message: `Document processed successfully - ${pageImages.length} pages analyzed`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
