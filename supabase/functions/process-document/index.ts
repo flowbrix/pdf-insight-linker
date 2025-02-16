@@ -2,16 +2,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
-import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm'
+import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Configuration de PDF.js pour Deno
+const pdfjsLib = pdfjs as any;
+pdfjsLib.GlobalWorkerOptions = pdfjsLib.GlobalWorkerOptions || {};
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
+
 async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): Promise<Uint8Array> {
   // Initialiser PDF.js
-  const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const page = await pdf.getPage(pageNumber);
   
   // Définir une échelle raisonnable pour la conversion
