@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -6,24 +5,23 @@ import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json'
 }
 
-// Configuration de PDF.js pour Deno
 const pdfjsLib = pdfjs as any;
 pdfjsLib.GlobalWorkerOptions = pdfjsLib.GlobalWorkerOptions || {};
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 
 async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): Promise<Uint8Array> {
-  // Initialiser PDF.js
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const page = await pdf.getPage(pageNumber);
   
-  // Définir une échelle raisonnable pour la conversion
   const scale = 2.0;
   const viewport = page.getViewport({ scale });
   
-  // Créer un canvas pour le rendu
   const canvas = new OffscreenCanvas(viewport.width, viewport.height);
   const context = canvas.getContext('2d');
   
@@ -31,11 +29,9 @@ async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): 
     throw new Error('Impossible de créer le contexte 2D');
   }
   
-  // Préparer le canvas
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   
-  // Rendre la page
   const renderContext = {
     canvasContext: context,
     viewport: viewport,
@@ -43,7 +39,6 @@ async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): 
   
   await page.render(renderContext).promise;
   
-  // Convertir le canvas en blob JPG
   const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -129,24 +124,60 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    })
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { 
+        status: 405,
+        headers: { ...corsHeaders }
+      }
+    )
   }
 
   try {
     console.log('Début du traitement de la requête');
-    const reqBody = await req.json();
+    let reqBody;
+    try {
+      reqBody = await req.json();
+    } catch (e) {
+      console.error('Erreur lors du parsing du JSON:', e);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders }
+        }
+      );
+    }
+
     const { documentId } = reqBody;
 
     if (!documentId) {
-      throw new Error('Document ID is required')
+      return new Response(
+        JSON.stringify({ error: 'Document ID is required' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders }
+        }
+      );
     }
 
     console.log('Traitement du document avec ID:', documentId);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Récupérer le document PDF depuis le storage
     console.log('Récupération des informations du document depuis la base de données...');
@@ -253,13 +284,22 @@ serve(async (req) => {
         success: true, 
         message: `Document processed successfully - ${pageImages.length} pages analyzed`
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 200,
+        headers: { ...corsHeaders }
+      }
     )
   } catch (error) {
-    console.error('Erreur globale:', error)
+    console.error('Erreur globale:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders }
+      }
     )
   }
 })
