@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -47,7 +48,7 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-medium-vision",
+        model: "pixtral-large-latest",
         messages: [
           {
             role: "user",
