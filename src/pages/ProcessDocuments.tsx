@@ -17,6 +17,7 @@ const ProcessDocuments = () => {
   const [selectedSector, setSelectedSector] = useState<"SAT" | "Embarquement" | "Cable">("SAT");
   const [selectedType, setSelectedType] = useState<"Qualité" | "Mesures" | "Production">("Qualité");
   const [makeVisible, setMakeVisible] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Réinitialiser l'atelier sélectionné quand le secteur change
   useEffect(() => {
@@ -94,17 +95,62 @@ const ProcessDocuments = () => {
       return;
     }
 
-    toast.promise(
-      async () => {
-        // Logique d'upload à implémenter
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      },
-      {
-        loading: "Traitement du document en cours...",
-        success: "Document traité avec succès",
-        error: "Erreur lors du traitement du document"
+    setIsUploading(true);
+
+    try {
+      // 1. Upload du fichier dans le bucket
+      const fileExt = selectedFile.name.split('.').pop();
+      const filePath = `${crypto.randomUUID()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) {
+        throw uploadError;
       }
-    );
+
+      // 2. Créer l'entrée dans la table documents
+      const { data: document, error: documentError } = await supabase
+        .from('documents')
+        .insert({
+          file_name: selectedFile.name,
+          file_path: filePath,
+          sector: selectedSector,
+          document_type: selectedType,
+          atelier_id: selectedAtelier,
+          liaison_id: selectedLiaison || null,
+          client_visible: makeVisible,
+        })
+        .select()
+        .single();
+
+      if (documentError) {
+        throw documentError;
+      }
+
+      // 3. Déclencher le traitement OCR via une Edge Function (à implémenter)
+      const { error: processingError } = await supabase.functions.invoke('process-document', {
+        body: { documentId: document.id }
+      });
+
+      if (processingError) {
+        throw processingError;
+      }
+
+      toast.success("Document uploadé avec succès et en cours de traitement");
+      
+      // Réinitialiser le formulaire
+      setSelectedFile(null);
+      setSelectedAtelier("");
+      setSelectedLiaison("");
+      setMakeVisible(false);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error("Erreur lors du traitement du document");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const currentAteliers = getAteliersBySector(selectedSector);
@@ -199,8 +245,12 @@ const ProcessDocuments = () => {
             </Label>
           </div>
 
-          <Button onClick={handleSubmit} className="w-full">
-            Traiter le Document
+          <Button 
+            onClick={handleSubmit} 
+            className="w-full"
+            disabled={isUploading}
+          >
+            {isUploading ? "Traitement en cours..." : "Traiter le Document"}
           </Button>
         </CardContent>
       </Card>
