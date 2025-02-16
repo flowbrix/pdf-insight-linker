@@ -6,7 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 const Layout = () => {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex flex-col w-full bg-background">
         <Navbar />
         <main className="flex-1 p-6">
           <Outlet />

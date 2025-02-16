@@ -1,8 +1,19 @@
+
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
+  const { data: session } = useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getSession();
+      return data.session;
+    },
+  });
+
   return (
     <div className="min-h-[calc(100vh-2rem)] flex flex-col items-center justify-center max-w-5xl mx-auto text-center">
       <div className="space-y-6 animate-fade-up">
@@ -12,20 +23,30 @@ const Index = () => {
         <p className="mx-auto max-w-[700px] text-gray-500 md:text-xl dark:text-gray-400">
           Optimisez votre flux de traitement documentaire avec notre technologie OCR intelligente. Extrayez, vérifiez et gérez vos documents PDF efficacement.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
-            <Link to="/process">
-              <Upload className="mr-2 h-5 w-5" />
-              Commencer le Traitement
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link to="/documents">
-              <FileText className="mr-2 h-5 w-5" />
-              Voir les Documents
-            </Link>
-          </Button>
-        </div>
+        {session ? (
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
+              <Link to="/process">
+                <Upload className="mr-2 h-5 w-5" />
+                Commencer le Traitement
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/documents">
+                <FileText className="mr-2 h-5 w-5" />
+                Voir les Documents
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
+              <Link to="/auth">
+                Se connecter
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="mt-20 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
