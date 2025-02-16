@@ -43,9 +43,9 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
 
 async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
-    console.log('Loading Tesseract worker directly...');
+    console.log('Setting up environment...');
     
-    // Créer un polyfill minimal pour document
+    // Polyfill pour document
     // @ts-ignore: Ajout de document global pour Tesseract
     globalThis.document = {
       currentScript: { src: '' },
@@ -55,6 +55,35 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
         addEventListener: () => {},
         removeEventListener: () => {},
       }),
+    };
+
+    // Polyfill pour Worker
+    // @ts-ignore: Ajout de Worker global
+    globalThis.Worker = class MockWorker {
+      constructor(scriptURL: string) {
+        console.log('Mock Worker created with script:', scriptURL);
+      }
+      
+      postMessage(message: any) {
+        console.log('Worker received message:', message);
+      }
+      
+      onmessage = null;
+      onerror = null;
+      
+      addEventListener(type: string, listener: EventListener) {
+        if (type === 'message') this.onmessage = listener;
+        if (type === 'error') this.onerror = listener;
+      }
+      
+      removeEventListener(type: string, listener: EventListener) {
+        if (type === 'message' && this.onmessage === listener) this.onmessage = null;
+        if (type === 'error' && this.onerror === listener) this.onerror = null;
+      }
+      
+      terminate() {
+        console.log('Worker terminated');
+      }
     };
     
     const { createWorker } = await import('https://cdn.skypack.dev/tesseract.js@2.1.5?dts');
@@ -102,9 +131,11 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
     console.log('Terminating worker...');
     await worker.terminate();
     
-    // Nettoyer le polyfill
-    // @ts-ignore: Suppression du document global
+    // Nettoyage des polyfills
+    // @ts-ignore: Suppression des globals
     delete globalThis.document;
+    // @ts-ignore: Suppression des globals
+    delete globalThis.Worker;
     
     return extractedText;
   } catch (error) {
