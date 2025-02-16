@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
@@ -44,10 +45,26 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
     console.log('Loading Tesseract worker directly...');
     
+    // Créer un polyfill minimal pour document
+    // @ts-ignore: Ajout de document global pour Tesseract
+    globalThis.document = {
+      currentScript: { src: '' },
+      createElement: () => ({
+        setAttribute: () => {},
+        style: {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    };
+    
     const { createWorker } = await import('https://cdn.skypack.dev/tesseract.js@2.1.5?dts');
     
     console.log('Creating worker with minimal configuration...');
-    const worker = await createWorker();
+    const worker = await createWorker({
+      workerPath: 'https://unpkg.com/tesseract.js@2.1.5/dist/worker.min.js',
+      corePath: 'https://unpkg.com/tesseract.js-core@2.1.5/tesseract-core.wasm.js',
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+    });
 
     console.log('Loading French language data...');
     await worker.loadLanguage('fra');
@@ -84,6 +101,10 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
     
     console.log('Terminating worker...');
     await worker.terminate();
+    
+    // Nettoyer le polyfill
+    // @ts-ignore: Suppression du document global
+    delete globalThis.document;
     
     return extractedText;
   } catch (error) {
