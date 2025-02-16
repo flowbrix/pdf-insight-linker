@@ -1,7 +1,8 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
-import { createWorker, createScheduler } from 'https://esm.sh/tesseract.js@4.1.1'
+import { createWorker } from 'https://esm.sh/tesseract.js@4.1.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,16 +44,28 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
 
 async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
-    const scheduler = createScheduler();
-    const worker = await createWorker();
-    await scheduler.addWorker(worker);
+    console.log('Initializing Tesseract worker...');
+    
+    const workerOptions = {
+      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/worker.min.js',
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@4.0.4/tesseract-core.wasm.js',
+      logger: m => console.log(m),
+      errorHandler: e => console.error('Worker error:', e)
+    };
 
-    console.log('Loading language data...');
+    const worker = await createWorker(workerOptions);
+    
+    console.log('Loading French language data...');
     await worker.loadLanguage('fra');
-    console.log('Initializing worker...');
+    
+    console.log('Initializing OCR...');
     await worker.initialize('fra');
-
-    console.log('Tesseract worker initialized');
+    
+    console.log('Setting OCR parameters...');
+    await worker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789°.-_/\\: ',
+    });
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfDoc.getPages();
@@ -65,20 +78,21 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
       const page = pages[i];
       const { width, height } = page.getSize();
       
-      // Convertir la page en PNG avec une résolution appropriée
       const pngImage = await page.toPng({
         width: width * 2,
         height: height * 2
       });
       
-      // Reconnaissance du texte avec le scheduler
-      const { data: { text } } = await scheduler.addJob('recognize', pngImage);
+      console.log(`Starting OCR for page ${i + 1}...`);
+      const { data: { text } } = await worker.recognize(pngImage);
+      console.log(`OCR completed for page ${i + 1}`);
+      
       extractedText += text + '\n';
-      console.log(`Extracted text from page ${i + 1}:`, text.substring(0, 200));
+      console.log(`Text extracted from page ${i + 1}:`, text.substring(0, 200));
     }
     
-    await scheduler.terminate();
-    console.log('Tesseract scheduler terminated');
+    console.log('Terminating worker...');
+    await worker.terminate();
     
     return extractedText;
   } catch (error) {
