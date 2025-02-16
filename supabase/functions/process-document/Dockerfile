@@ -1,34 +1,15 @@
 
-FROM denoland/deno:alpine-1.37.0
+FROM denoland/deno:1.40.2
 
-# Installation des dépendances système nécessaires
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    tesseract-ocr \
-    tesseract-ocr-data-fra \
+# Installation des dépendances système
+RUN apt-get update && apt-get install -y \
     poppler-utils \
-    gcc \
-    python3-dev \
-    musl-dev \
-    jpeg-dev \
-    zlib-dev \
-    libjpeg
+    imagemagick \
+    && rm -rf /var/lib/apt/lists/*
 
-# Création du répertoire de travail
+# Configuration d'ImageMagick pour permettre la conversion PDF
+RUN sed -i 's/rights="none" pattern="PDF"/rights="read | write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml
+
 WORKDIR /app
+USER deno
 
-# Copie des fichiers nécessaires
-COPY . .
-
-# Installation des dépendances Python
-RUN pip3 install -r requirements.txt
-
-# Création du dossier temporaire pour les PDF
-RUN mkdir -p temp
-
-# Exposition du port
-EXPOSE 8000
-
-# Commande par défaut
-CMD ["deno", "run", "--allow-net", "--allow-read", "--allow-write", "--allow-run", "index.ts"]

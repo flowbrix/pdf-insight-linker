@@ -122,6 +122,44 @@ export type Database = {
           },
         ]
       }
+      document_pages: {
+        Row: {
+          created_at: string | null
+          document_id: string | null
+          id: string
+          image_path: string
+          page_number: number
+          text_content: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          image_path: string
+          page_number: number
+          text_content?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          image_path?: string
+          page_number?: number
+          text_content?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_pages_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           atelier_id: string | null
@@ -138,6 +176,7 @@ export type Database = {
           processed_by: string | null
           sector: Database["public"]["Enums"]["document_sector"]
           status: string | null
+          total_pages: number | null
         }
         Insert: {
           atelier_id?: string | null
@@ -154,6 +193,7 @@ export type Database = {
           processed_by?: string | null
           sector: Database["public"]["Enums"]["document_sector"]
           status?: string | null
+          total_pages?: number | null
         }
         Update: {
           atelier_id?: string | null
@@ -170,6 +210,7 @@ export type Database = {
           processed_by?: string | null
           sector?: Database["public"]["Enums"]["document_sector"]
           status?: string | null
+          total_pages?: number | null
         }
         Relationships: [
           {
