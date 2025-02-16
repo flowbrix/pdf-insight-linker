@@ -81,9 +81,10 @@ serve(async (req) => {
     const pdfDocument = await pdf.default(fileData)
     let pdfText = '';
     
-    // Traiter toutes les pages du document
-    const numPages = pdfDocument.numPages();
-    console.log(`Nombre de pages dans le document : ${numPages}`);
+    // Limiter l'extraction aux 10 premières pages
+    const totalPages = pdfDocument.numPages();
+    const numPages = Math.min(totalPages, 10);
+    console.log(`Traitement des ${numPages} premières pages sur un total de ${totalPages} pages`);
     
     for (let i = 1; i <= numPages; i++) {
       console.log(`Traitement de la page ${i}/${numPages}`);
@@ -101,10 +102,10 @@ serve(async (req) => {
       console.log(`Recherche de ${key.name}: ${value || 'non trouvé'}`);
       return {
         key_name: key.name,
-        extracted_value: value || null, // On stocke null plutôt que "Non trouvé"
-        page_number: 1 // Par défaut page 1
+        extracted_value: value || null,
+        page_number: 1
       }
-    }).filter(data => data.extracted_value !== null); // Ne garder que les données trouvées
+    }).filter(data => data.extracted_value !== null);
 
     // 5. Sauvegarder les données extraites
     if (extractedData.length > 0) {
