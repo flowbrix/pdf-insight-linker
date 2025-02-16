@@ -37,6 +37,18 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
     if (!mistralApiKey) {
       throw new Error('Clé API Mistral manquante');
     }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: publicUrlData } = supabase.storage
+      .from('temp_images')
+      .getPublicUrl(imageUrl.split('/temp_images/')[1]);
+
+    const publicUrl = publicUrlData.publicUrl;
+    console.log('URL publique de l\'image:', publicUrl);
     
     console.log('Envoi de la requête à Mistral API...');
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -57,7 +69,7 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
               },
               {
                 type: "image_url",
-                image_url: imageUrl
+                image_url: publicUrl
               }
             ]
           }
