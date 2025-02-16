@@ -137,6 +137,7 @@ export type Database = {
           processed_at: string | null
           processed_by: string | null
           sector: Database["public"]["Enums"]["document_sector"]
+          status: string | null
         }
         Insert: {
           atelier_id?: string | null
@@ -152,6 +153,7 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           sector: Database["public"]["Enums"]["document_sector"]
+          status?: string | null
         }
         Update: {
           atelier_id?: string | null
@@ -167,6 +169,7 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           sector?: Database["public"]["Enums"]["document_sector"]
+          status?: string | null
         }
         Relationships: [
           {
