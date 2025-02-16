@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -51,7 +52,30 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
         messages: [
           {
             role: "user",
-            content: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires, sans aucun texte avant ou après, sans formatage markdown.\n" + base64PDF
+            content: `Extract the values of the following keys from the given JSON:
+
+LIAISON
+N° AMORCE
+CUVE (also named Emission)
+Section N°
+B.J. N°, B.E. N°, or BU. N° (identify as N° EQUIPEMENT)
+TYPE DE CABLE (can be found as Type Câble)
+FIBRES
+SCENARIO
+N° LONGUEUR (can be found as LG 1)
+METRAGE
+COTE
+N° EXTREMITE
+SEGMENT
+DIAMETRE CABLE
+Machine
+Recette
+Version Plan
+Type activité
+Type de Plan
+title
+
+If there are multiple inputs for a value, use the most accurate one. Structure the output in JSON format.\n` + base64PDF
           }
         ]
       })
