@@ -69,12 +69,14 @@ const Navbar = () => {
   // Déterminer les éléments de navigation en fonction du rôle
   const navItems = [];
   
-  // Tous les utilisateurs peuvent voir les documents
-  navItems.push({ 
-    title: "Voir les Documents", 
-    url: "/documents", 
-    icon: FileText 
-  });
+  // Seulement ajouter "Voir les Documents" si un utilisateur est connecté
+  if (session) {
+    navItems.push({ 
+      title: "Voir les Documents", 
+      url: "/documents", 
+      icon: FileText 
+    });
+  }
 
   // Seuls les admin et operators peuvent voir ces pages
   if (profile?.role && ["admin", "operator"].includes(profile.role)) {
