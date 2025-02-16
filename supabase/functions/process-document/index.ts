@@ -1,7 +1,7 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
-import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,24 +30,13 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 
 async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
   try {
-    console.log('Début de l\'analyse avec Mistral Vision');
+    console.log('Début de l\'analyse avec Mistral Vision pour l\'URL:', imageUrl);
     
     const mistralApiKey = Deno.env.get("MISTRAL_API");
     if (!mistralApiKey) {
       throw new Error('Clé API Mistral manquante');
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const baseUrl = Deno.env.get('SUPABASE_URL');
-    const filePath = imageUrl.substring(imageUrl.indexOf('temp_images/'));
-    const fullUrl = `${baseUrl}/storage/v1/object/public/temp_images/${filePath.split('temp_images/')[1]}`;
-    
-    console.log('URL complète construite:', fullUrl);
-    
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -66,7 +55,7 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
               },
               {
                 type: "image_url",
-                image_url: fullUrl
+                image_url: imageUrl
               }
             ]
           }
@@ -82,20 +71,17 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
     }
 
     const result = await response.json();
-    console.log('Réponse Mistral brute:', JSON.stringify(result, null, 2));
-
+    console.log('Réponse Mistral reçue');
+    
     let content = result.choices[0].message.content;
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     content = content.trim();
     
-    console.log('Contenu nettoyé:', content);
-    
     try {
       const parsedContent = JSON.parse(content);
-      console.log('Contenu parsé avec succès:', parsedContent);
       return parsedContent;
     } catch (parseError) {
-      console.error('Erreur lors du parsing du contenu nettoyé:', parseError);
+      console.error('Erreur lors du parsing du contenu:', parseError);
       throw new Error(`Impossible de parser la réponse JSON: ${parseError.message}`);
     }
   } catch (error) {
@@ -105,7 +91,6 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -155,30 +140,34 @@ serve(async (req) => {
     console.log(`Extraction réussie de ${pdfPages.length} pages du PDF`);
 
     // 3. Pour chaque page
+    const baseUrl = Deno.env.get('SUPABASE_URL');
     for (let i = 0; i < pdfPages.length; i++) {
       const pageNumber = i + 1;
       console.log(`Début du traitement de la page ${pageNumber}`);
 
       try {
-        // Sauvegarder la page en tant qu'image dans le bucket temp_images
-        const imagePath = `${documentId}/${pageNumber}.jpg`;
+        // Générer un nom de fichier unique pour l'image
+        const imagePath = `${documentId}/${pageNumber}.pdf`;
+        console.log(`Uploading page ${pageNumber} vers ${imagePath}`);
+
+        // Upload de la page PDF
         const { error: uploadError } = await supabase.storage
           .from('temp_images')
           .upload(imagePath, pdfPages[i], {
-            contentType: 'image/jpeg',
+            contentType: 'application/pdf',
             upsert: true
           });
 
         if (uploadError) {
+          console.error(`Erreur lors de l'upload de la page ${pageNumber}:`, uploadError);
           throw uploadError;
         }
 
-        // Obtenir l'URL publique de l'image
-        const { data: { publicUrl } } = supabase.storage
-          .from('temp_images')
-          .getPublicUrl(imagePath);
+        // Construire l'URL publique
+        const publicUrl = `${baseUrl}/storage/v1/object/public/temp_images/${imagePath}`;
+        console.log(`URL publique générée pour la page ${pageNumber}:`, publicUrl);
 
-        // Analyser avec Mistral Vision en utilisant l'URL de l'image
+        // Analyser avec Mistral Vision
         console.log(`Envoi de la page ${pageNumber} à Mistral Vision...`);
         const analysisResult = await analyzeWithMistralVision(publicUrl);
         
@@ -192,19 +181,16 @@ serve(async (req) => {
         });
 
         // Pour chaque paire clé:valeur trouvée
-        try {
-          console.log(`Analyse des données extraites de la page ${pageNumber}:`, analysisResult);
-          for (const [key, value] of Object.entries(analysisResult)) {
-            console.log(`Sauvegarde de la paire - Clé: ${key}, Valeur: ${value}`);
+        for (const [key, value] of Object.entries(analysisResult)) {
+          if (value) {
+            console.log(`Sauvegarde de la donnée - Clé: ${key}, Valeur: ${value}`);
             await supabase.from('extracted_data').insert({
               document_id: documentId,
               key_name: key,
-              extracted_value: value?.toString(),
+              extracted_value: value.toString(),
               page_number: pageNumber
             });
           }
-        } catch (e) {
-          console.error(`Erreur lors du parsing des données de la page ${pageNumber}:`, e);
         }
       } catch (error) {
         console.error(`Erreur lors du traitement de la page ${pageNumber}:`, error);
