@@ -52,7 +52,7 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
         messages: [
           {
             role: "user",
-            content: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires.\n" + base64PDF
+            content: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires, sans aucun texte avant ou après, sans formatage markdown.\n" + base64PDF
           }
         ]
       })
@@ -65,8 +65,25 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
     }
 
     const result = await response.json();
-    console.log('Réponse Mistral reçue avec succès:', JSON.stringify(result, null, 2));
-    return result;
+    console.log('Réponse Mistral brute:', JSON.stringify(result, null, 2));
+
+    // Nettoyer la réponse de Mistral
+    let content = result.choices[0].message.content;
+    // Supprimer les délimiteurs markdown ```json et ``` s'ils existent
+    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    // Nettoyer les espaces au début et à la fin
+    content = content.trim();
+    
+    console.log('Contenu nettoyé:', content);
+    
+    try {
+      const parsedContent = JSON.parse(content);
+      console.log('Contenu parsé avec succès:', parsedContent);
+      return parsedContent;
+    } catch (parseError) {
+      console.error('Erreur lors du parsing du contenu nettoyé:', parseError);
+      throw new Error(`Impossible de parser la réponse JSON: ${parseError.message}`);
+    }
   } catch (error) {
     console.error('Erreur dans analyzeWithMistralVision:', error);
     throw error;
