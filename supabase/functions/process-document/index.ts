@@ -26,40 +26,48 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 }
 
 async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
-  // Convertir directement le PDF en base64
-  const base64PDF = Buffer.from(pdfBytes).toString('base64');
-  
-  const response = await fetch("https://api.mistral.ai/v1/vision", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${Deno.env.get("MISTRAL_API")}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "mistral-medium",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires."
-            },
-            {
-              type: "application/pdf",
-              data: base64PDF
-            }
-          ]
-        }
-      ]
-    })
-  });
+  try {
+    const base64PDF = Buffer.from(pdfBytes).toString('base64');
+    
+    const response = await fetch("https://api.mistral.ai/v1/vision", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("MISTRAL_API")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "mistral-medium",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires."
+              },
+              {
+                type: "application/pdf",
+                data: base64PDF
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error(`Erreur Mistral API: ${await response.text()}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Mistral API error response:', errorText);
+      throw new Error(`Erreur Mistral API: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('Mistral API response:', result);
+    return result;
+  } catch (error) {
+    console.error('Error in analyzeWithMistralVision:', error);
+    throw error;
   }
-
-  return await response.json();
 }
 
 serve(async (req) => {
@@ -69,7 +77,8 @@ serve(async (req) => {
   }
 
   try {
-    const { documentId } = await req.json()
+    const reqBody = await req.json();
+    const { documentId } = reqBody;
 
     if (!documentId) {
       throw new Error('Document ID is required')
@@ -112,7 +121,7 @@ serve(async (req) => {
       console.log(`Processing page ${pageNumber}`);
 
       try {
-        // Analyser directement avec Mistral Vision
+        // Analyser avec Mistral Vision
         const analysisResult = await analyzeWithMistralVision(pdfPages[i]);
         
         // Sauvegarder les résultats
