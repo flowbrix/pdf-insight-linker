@@ -32,7 +32,8 @@ const DATA_KEYS = [
 
 function findValueForKey(text: string, key: { name: string, alternativeNames: string[] }): string | null {
   for (const keyName of key.alternativeNames) {
-    const regex = new RegExp(`${keyName}[\\s:]*([^\\n\\r]+)`, 'i');
+    // Amélioration de la regex pour capturer le texte jusqu'à la fin de la ligne ou jusqu'au prochain label
+    const regex = new RegExp(`${keyName}[\\s:]*([^\\n\\r]+?)(?=\\s*(?:${DATA_KEYS.map(k => k.alternativeNames[0]).join('|')})|$)`, 'i');
     const match = text.match(regex);
     if (match && match[1]) {
       return match[1].trim();
@@ -80,35 +81,46 @@ serve(async (req) => {
     const pdfDocument = await pdf.default(fileData)
     let pdfText = '';
     
-    // On limite l'extraction aux 10 premières pages
-    const numPages = Math.min(pdfDocument.numPages(), 10);
+    // Traiter toutes les pages du document
+    const numPages = pdfDocument.numPages();
+    console.log(`Nombre de pages dans le document : ${numPages}`);
+    
     for (let i = 1; i <= numPages; i++) {
+      console.log(`Traitement de la page ${i}/${numPages}`);
       const page = await pdfDocument.getPage(i);
-      pdfText += await page.text() + '\n';
+      const pageText = await page.text();
+      pdfText += pageText + '\n';
+      console.log(`Texte extrait de la page ${i} :`, pageText.substring(0, 200) + '...');
     }
     
-    console.log('Texte extrait :', pdfText.substring(0, 500) + '...') // Log des 500 premiers caractères
+    console.log('Texte complet extrait:', pdfText.substring(0, 500) + '...');
 
     // 4. Rechercher les valeurs pour chaque clé
     const extractedData = DATA_KEYS.map(key => {
-      const value = findValueForKey(pdfText, key)
-      console.log(`Recherche de ${key.name}: ${value || 'non trouvé'}`)
+      const value = findValueForKey(pdfText, key);
+      console.log(`Recherche de ${key.name}: ${value || 'non trouvé'}`);
       return {
         key_name: key.name,
-        extracted_value: value || 'Non trouvé',
-        page_number: 1 // Note: même si on extrait de plusieurs pages, on garde 1 par défaut
+        extracted_value: value || null, // On stocke null plutôt que "Non trouvé"
+        page_number: 1 // Par défaut page 1
       }
-    })
+    }).filter(data => data.extracted_value !== null); // Ne garder que les données trouvées
 
     // 5. Sauvegarder les données extraites
-    const { error: insertError } = await supabase
-      .from('extracted_data')
-      .insert(extractedData.map(data => ({
-        document_id: documentId,
-        ...data
-      })))
+    if (extractedData.length > 0) {
+      const { error: insertError } = await supabase
+        .from('extracted_data')
+        .insert(extractedData.map(data => ({
+          document_id: documentId,
+          ...data
+        })))
 
-    if (insertError) throw insertError
+      if (insertError) throw insertError
+
+      console.log(`${extractedData.length} données extraites sauvegardées avec succès`);
+    } else {
+      console.log('Aucune donnée n\'a pu être extraite du document');
+    }
 
     // 6. Mettre à jour le statut du document
     const { error: updateError } = await supabase
@@ -122,7 +134,11 @@ serve(async (req) => {
     if (updateError) throw updateError
 
     return new Response(
-      JSON.stringify({ success: true, extractedData }),
+      JSON.stringify({ 
+        success: true, 
+        extractedData,
+        message: `${extractedData.length} données extraites avec succès`
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
