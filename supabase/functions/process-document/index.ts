@@ -1,7 +1,7 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
+import { createWorker } from 'https://esm.sh/tesseract.js@4.1.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,11 +41,38 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
   return null;
 }
 
-function extractTextFromPdf(pdfBytes: Uint8Array): string {
-  // Pour l'instant, nous allons simuler l'extraction de texte
-  // car pdf-lib ne supporte pas directement l'extraction de texte
-  // Nous implémenterons une solution plus robuste plus tard
-  return new TextDecoder().decode(pdfBytes);
+async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
+  try {
+    const worker = await createWorker('fra');
+    console.log('Tesseract worker initialized');
+
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pages = pdfDoc.getPages();
+    const maxPages = Math.min(pages.length, 10);
+    
+    let extractedText = '';
+    
+    for (let i = 0; i < maxPages; i++) {
+      console.log(`Processing page ${i + 1}/${maxPages}`);
+      const page = pages[i];
+      const { width, height } = page.getSize();
+      
+      const pngImage = await page.toPng();
+      
+      const { data: { text } } = await worker.recognize(pngImage);
+      extractedText += text + '\n';
+      
+      console.log(`Extracted text from page ${i + 1}:`, text.substring(0, 200));
+    }
+    
+    await worker.terminate();
+    console.log('Tesseract worker terminated');
+    
+    return extractedText;
+  } catch (error) {
+    console.error('Error in Tesseract text extraction:', error);
+    throw error;
+  }
 }
 
 serve(async (req) => {
@@ -67,7 +94,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 1. Récupérer les informations du document
     const { data: document, error: documentError } = await supabase
       .from('documents')
       .select('*')
@@ -81,7 +107,6 @@ serve(async (req) => {
 
     console.log('Document found:', document.file_name);
 
-    // 2. Télécharger le fichier PDF depuis le bucket
     const { data: fileData, error: downloadError } = await supabase
       .storage
       .from('documents')
@@ -94,21 +119,13 @@ serve(async (req) => {
 
     console.log('File downloaded successfully');
 
-    // 3. Extraire le texte du PDF
     const arrayBuffer = await fileData.arrayBuffer();
     const pdfBytes = new Uint8Array(arrayBuffer);
     console.log('PDF bytes loaded:', pdfBytes.length, 'bytes');
 
-    // Charger le PDF avec pdf-lib
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const numPages = pdfDoc.getPageCount();
-    console.log(`Document has ${numPages} pages`);
+    const pdfText = await extractTextWithTesseract(pdfBytes);
+    console.log('Extracted text sample:', pdfText.substring(0, 500));
 
-    // Extraire le texte
-    let pdfText = extractTextFromPdf(pdfBytes);
-    console.log('Extracted text sample:', pdfText.substring(0, 200));
-
-    // 4. Rechercher les valeurs pour chaque clé
     const extractedData = DATA_KEYS.map(key => {
       const value = findValueForKey(pdfText, key);
       console.log(`Searching for ${key.name}: ${value || 'not found'}`);
@@ -121,7 +138,6 @@ serve(async (req) => {
 
     console.log(`Found ${extractedData.length} data points`);
 
-    // 5. Sauvegarder les données extraites
     if (extractedData.length > 0) {
       const { error: insertError } = await supabase
         .from('extracted_data')
@@ -140,7 +156,6 @@ serve(async (req) => {
       console.log('No data could be extracted from the document');
     }
 
-    // 6. Mettre à jour le statut du document
     const { error: updateError } = await supabase
       .from('documents')
       .update({
