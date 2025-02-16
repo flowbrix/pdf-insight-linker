@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
@@ -32,7 +31,6 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
   try {
     console.log('Début de l\'analyse avec Mistral Vision');
-    // Utilisation de l'encodeur base64 de Deno au lieu de Buffer
     const base64PDF = base64Encode(pdfBytes);
     console.log('PDF converti en base64');
     
@@ -42,14 +40,14 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
     }
     
     console.log('Envoi de la requête à Mistral API...');
-    const response = await fetch("https://api.mistral.ai/v1/vision", {
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${mistralApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-medium",
+        model: "mistral-medium-vision",
         messages: [
           {
             role: "user",
@@ -59,8 +57,8 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
                 text: "Extrais toutes les paires clé:valeur que tu trouves dans cette image. Réponds uniquement avec un objet JSON contenant ces paires."
               },
               {
-                type: "application/pdf",
-                data: base64PDF
+                type: "image",
+                data: `data:application/pdf;base64,${base64PDF}`
               }
             ]
           }
