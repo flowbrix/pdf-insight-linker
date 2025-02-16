@@ -43,9 +43,12 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    const filePath = imageUrl.substring(imageUrl.indexOf('temp_images/'));
+    console.log('Chemin du fichier extrait:', filePath);
+
     const { data: publicUrlData } = supabase.storage
       .from('temp_images')
-      .getPublicUrl(imageUrl.split('/temp_images/')[1]);
+      .getPublicUrl(filePath);
 
     const publicUrl = publicUrlData.publicUrl;
     console.log('URL publique de l\'image:', publicUrl);
