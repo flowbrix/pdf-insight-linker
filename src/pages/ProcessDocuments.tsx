@@ -32,7 +32,6 @@ const ProcessDocuments = () => {
       case "SAT":
         return [
           { id: "repeteur", name: "Répéteur" },
-          { id: "seq", name: "SEQ" },
           { id: "roadm", name: "ROADM" },
           { id: "pteq", name: "PTEQ" },
           { id: "bu", name: "BU" },
@@ -134,7 +133,7 @@ const ProcessDocuments = () => {
 
       // 3. Déclencher le traitement OCR via une Edge Function
       const { error: processingError } = await supabase.functions.invoke('process-document', {
-        body: { documentId: document.id }
+        body: { documentId: document?.id }
       });
 
       if (processingError) {
@@ -213,7 +212,7 @@ const ProcessDocuments = () => {
               </SelectTrigger>
               <SelectContent>
                 {currentAteliers.map((atelier) => (
-                  <SelectItem key={atelier.id} value={atelier.id}>
+                  <SelectItem key={atelier.name} value={atelier.id}>
                     {atelier.name}
                   </SelectItem>
                 ))}
