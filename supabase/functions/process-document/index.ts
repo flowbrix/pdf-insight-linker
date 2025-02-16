@@ -44,13 +44,10 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
     console.log('Loading Tesseract worker directly...');
     
-    const { createWorker } = await import('https://cdn.skypack.dev/tesseract.js@4.1.1?dts');
+    const { createWorker } = await import('https://cdn.skypack.dev/tesseract.js@2.1.5?dts');
     
     console.log('Creating worker with minimal configuration...');
-    const worker = await createWorker({
-      logger: m => console.log('Tesseract Log:', m),
-      errorHandler: err => console.error('Tesseract Error:', err)
-    });
+    const worker = await createWorker();
 
     console.log('Loading French language data...');
     await worker.loadLanguage('fra');
