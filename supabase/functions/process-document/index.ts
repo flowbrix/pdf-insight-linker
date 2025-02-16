@@ -58,7 +58,7 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "pixtral-large-latest",
+        model: "pixtral-12b-2409",
         messages: [
           {
             role: "user",
@@ -73,7 +73,8 @@ async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
               }
             ]
           }
-        ]
+        ],
+        max_tokens: 1000
       })
     });
 
