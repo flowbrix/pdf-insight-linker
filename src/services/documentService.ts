@@ -64,19 +64,19 @@ export const processDocument = async ({
     onProcessingProgress(10);
 
     // 3. Déclencher le traitement OCR via une Edge Function
-    const { error: processingError } = await supabase.functions.invoke(
+    const functionResponse = await supabase.functions.invoke(
       'process-document',
       {
-        body: { documentId: document.id },
+        body: JSON.stringify({ documentId: document.id }),
         headers: {
           'Content-Type': 'application/json',
         },
       }
     );
 
-    if (processingError) {
-      console.error('Processing error:', processingError);
-      throw processingError;
+    if (functionResponse.error) {
+      console.error('Processing error:', functionResponse.error);
+      throw functionResponse.error;
     }
 
     onProcessingProgress(100);
