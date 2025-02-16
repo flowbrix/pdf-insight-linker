@@ -14,6 +14,8 @@ const ProcessDocuments = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedAtelier, setSelectedAtelier] = useState<string>("");
   const [selectedLiaison, setSelectedLiaison] = useState<string>("");
+  const [selectedSector, setSelectedSector] = useState<"SAT" | "Embarquement" | "Cable">("SAT");
+  const [selectedType, setSelectedType] = useState<"Qualité" | "Mesures" | "Production">("Qualité");
   const [makeVisible, setMakeVisible] = useState(false);
 
   const { data: ateliers } = useQuery({
@@ -57,6 +59,16 @@ const ProcessDocuments = () => {
       return;
     }
 
+    if (!selectedSector) {
+      toast.error("Veuillez sélectionner un secteur");
+      return;
+    }
+
+    if (!selectedType) {
+      toast.error("Veuillez sélectionner un type de document");
+      return;
+    }
+
     toast.promise(
       async () => {
         // Logique d'upload à implémenter
@@ -85,6 +97,36 @@ const ProcessDocuments = () => {
                 Fichier sélectionné : {selectedFile.name}
               </p>
             )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="sector">Secteur</Label>
+              <Select value={selectedSector} onValueChange={setSelectedSector}>
+                <SelectTrigger id="sector">
+                  <SelectValue placeholder="Sélectionnez un secteur" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SAT">SAT</SelectItem>
+                  <SelectItem value="Embarquement">Embarquement</SelectItem>
+                  <SelectItem value="Cable">Cable</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="type">Type de Document</Label>
+              <Select value={selectedType} onValueChange={setSelectedType}>
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Sélectionnez un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Qualité">Qualité</SelectItem>
+                  <SelectItem value="Mesures">Mesures</SelectItem>
+                  <SelectItem value="Production">Production</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
