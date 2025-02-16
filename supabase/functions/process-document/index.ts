@@ -21,7 +21,15 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
     const newPdf = await PDFDocument.create();
     const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
     newPdf.addPage(copiedPage);
-    const pageBytes = await newPdf.save();
+    
+    // Compression des options de sauvegarde PDF
+    const pageBytes = await newPdf.save({
+      useObjectStreams: false, // Réduire la complexité
+      addDefaultPage: false,
+      objectsPerTick: 50,
+      updateFieldAppearances: false
+    });
+    
     extractedPages.push(pageBytes);
     console.log(`Page ${i + 1} extraite avec succès`);
   }
@@ -29,11 +37,37 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
   return extractedPages;
 }
 
+async function optimizePDFForVision(pdfBytes: Uint8Array): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+  
+  // Réduire à une seule page si nécessaire
+  if (pages.length > 1) {
+    const newPdf = await PDFDocument.create();
+    const [firstPage] = await newPdf.copyPages(pdfDoc, [0]);
+    newPdf.addPage(firstPage);
+    return await newPdf.save({
+      useObjectStreams: false,
+      addDefaultPage: false,
+      objectsPerTick: 50,
+      updateFieldAppearances: false
+    });
+  }
+  
+  return pdfBytes;
+}
+
 async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
   try {
     console.log('Début de l\'analyse avec Mistral Vision');
-    const base64PDF = base64Encode(pdfBytes);
+    
+    // Optimisation du PDF avant conversion en base64
+    const optimizedPdfBytes = await optimizePDFForVision(pdfBytes);
+    console.log('PDF optimisé avec succès');
+    
+    const base64PDF = base64Encode(optimizedPdfBytes);
     console.log('PDF converti en base64');
+    console.log('Taille du PDF en base64:', base64PDF.length);
     
     const mistralApiKey = Deno.env.get("MISTRAL_API");
     if (!mistralApiKey) {
@@ -90,11 +124,8 @@ If there are multiple inputs for a value, use the most accurate one. Structure t
     const result = await response.json();
     console.log('Réponse Mistral brute:', JSON.stringify(result, null, 2));
 
-    // Nettoyer la réponse de Mistral
     let content = result.choices[0].message.content;
-    // Supprimer les délimiteurs markdown ```json et ``` s'ils existent
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    // Nettoyer les espaces au début et à la fin
     content = content.trim();
     
     console.log('Contenu nettoyé:', content);
