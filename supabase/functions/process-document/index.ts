@@ -45,11 +45,19 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
 async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
     // Configuration spécifique pour l'environnement Edge Function
-    const worker = await createWorker('fra', {
+    const worker = await createWorker({
       // Forcer l'utilisation de WASM sans dépendre du DOM
-      workerPath: 'https://unpkg.com/tesseract.js@4.1.1/dist/worker.min.js',
-      corePath: 'https://unpkg.com/tesseract.js-core@4.0.3/tesseract-core.wasm.js',
-      logger: msg => console.log('Tesseract Worker:', msg)
+      langPath: 'https://raw.githubusercontent.com/naptha/tessdata/gh-pages/4.0.0',
+      gzip: false,
+      workerBlobURL: false,
+      logger: msg => console.log('Tesseract Worker:', msg),
+      errorHandler: err => console.error('Tesseract Error:', err)
+    });
+
+    await worker.loadLanguage('fra');
+    await worker.initialize('fra');
+    await worker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789°.-_/\\:',
     });
 
     console.log('Tesseract worker initialized');
@@ -67,16 +75,12 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
       
       // Convertir la page en PNG avec une résolution appropriée
       const pngImage = await page.toPng({
-        width: width * 2, // Augmenter la résolution pour une meilleure reconnaissance
+        width: width * 2,
         height: height * 2
       });
       
-      // Reconnaissance du texte avec configuration spécifique
-      const { data: { text } } = await worker.recognize(pngImage, {
-        lang: 'fra',
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789°.-_/\\:',
-      });
-      
+      // Reconnaissance du texte
+      const { data: { text } } = await worker.recognize(pngImage);
       extractedText += text + '\n';
       console.log(`Extracted text from page ${i + 1}:`, text.substring(0, 200));
     }
