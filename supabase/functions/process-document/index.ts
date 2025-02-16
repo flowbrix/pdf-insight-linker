@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,7 +32,8 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
   try {
     console.log('Début de l\'analyse avec Mistral Vision');
-    const base64PDF = Buffer.from(pdfBytes).toString('base64');
+    // Utilisation de l'encodeur base64 de Deno au lieu de Buffer
+    const base64PDF = base64Encode(pdfBytes);
     console.log('PDF converti en base64');
     
     const mistralApiKey = Deno.env.get("MISTRAL_API");
