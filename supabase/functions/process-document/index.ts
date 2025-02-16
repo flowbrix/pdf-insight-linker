@@ -21,15 +21,7 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
     const newPdf = await PDFDocument.create();
     const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
     newPdf.addPage(copiedPage);
-    
-    // Compression des options de sauvegarde PDF
-    const pageBytes = await newPdf.save({
-      useObjectStreams: false, // Réduire la complexité
-      addDefaultPage: false,
-      objectsPerTick: 50,
-      updateFieldAppearances: false
-    });
-    
+    const pageBytes = await newPdf.save();
     extractedPages.push(pageBytes);
     console.log(`Page ${i + 1} extraite avec succès`);
   }
@@ -37,37 +29,10 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
   return extractedPages;
 }
 
-async function optimizePDFForVision(pdfBytes: Uint8Array): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const pages = pdfDoc.getPages();
-  
-  // Réduire à une seule page si nécessaire
-  if (pages.length > 1) {
-    const newPdf = await PDFDocument.create();
-    const [firstPage] = await newPdf.copyPages(pdfDoc, [0]);
-    newPdf.addPage(firstPage);
-    return await newPdf.save({
-      useObjectStreams: false,
-      addDefaultPage: false,
-      objectsPerTick: 50,
-      updateFieldAppearances: false
-    });
-  }
-  
-  return pdfBytes;
-}
-
-async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
+async function analyzeWithMistralVision(imageUrl: string): Promise<any> {
   try {
     console.log('Début de l\'analyse avec Mistral Vision');
-    
-    // Optimisation du PDF avant conversion en base64
-    const optimizedPdfBytes = await optimizePDFForVision(pdfBytes);
-    console.log('PDF optimisé avec succès');
-    
-    const base64PDF = base64Encode(optimizedPdfBytes);
-    console.log('PDF converti en base64');
-    console.log('Taille du PDF en base64:', base64PDF.length);
+    console.log('URL de l\'image à analyser:', imageUrl);
     
     const mistralApiKey = Deno.env.get("MISTRAL_API");
     if (!mistralApiKey) {
@@ -86,7 +51,10 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
         messages: [
           {
             role: "user",
-            content: `Extract the values of the following keys from the given JSON:
+            content: [
+              {
+                type: "text",
+                text: `Extract the values of the following keys from the document:
 
 LIAISON
 N° AMORCE
@@ -109,7 +77,13 @@ Type activité
 Type de Plan
 title
 
-If there are multiple inputs for a value, use the most accurate one. Structure the output in JSON format.\n` + base64PDF
+If there are multiple inputs for a value, use the most accurate one. Structure the output in JSON format.`
+              },
+              {
+                type: "image_url",
+                url: imageUrl
+              }
+            ]
           }
         ]
       })
@@ -200,15 +174,34 @@ serve(async (req) => {
       console.log(`Début du traitement de la page ${pageNumber}`);
 
       try {
-        // Analyser avec Mistral Vision
+        // Sauvegarder la page en tant qu'image dans le bucket temp_images
+        const imagePath = `${documentId}/${pageNumber}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from('temp_images')
+          .upload(imagePath, pdfPages[i], {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        // Obtenir l'URL publique de l'image
+        const { data: { publicUrl } } = supabase.storage
+          .from('temp_images')
+          .getPublicUrl(imagePath);
+
+        // Analyser avec Mistral Vision en utilisant l'URL de l'image
         console.log(`Envoi de la page ${pageNumber} à Mistral Vision...`);
-        const analysisResult = await analyzeWithMistralVision(pdfPages[i]);
+        const analysisResult = await analyzeWithMistralVision(publicUrl);
         
         // Sauvegarder les résultats
         console.log(`Sauvegarde du contenu de la page ${pageNumber}...`);
         await supabase.from('document_pages').insert({
           document_id: documentId,
           page_number: pageNumber,
+          image_path: imagePath,
           text_content: JSON.stringify(analysisResult)
         });
 
