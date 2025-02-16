@@ -5,14 +5,16 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 
 const Layout = () => {
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex flex-col w-full bg-background">
-        <Navbar />
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen flex flex-col w-full bg-background">
+      <SidebarProvider>
+        <div className="flex flex-col w-full">
+          <Navbar />
+          <main className="flex-1 p-6">
+            <Outlet />
+          </main>
+        </div>
+      </SidebarProvider>
+    </div>
   );
 };
 

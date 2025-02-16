@@ -49,8 +49,6 @@ const Navbar = () => {
 
       if (error) throw error;
       if (!data) {
-        // Si aucun profil n'est trouvé, on peut attendre que le trigger le crée
-        // ou rediriger vers la page de connexion
         toast.error("Erreur: Profil non trouvé");
         await supabase.auth.signOut();
         navigate("/auth");
@@ -74,10 +72,8 @@ const Navbar = () => {
     navigate("/auth");
   };
 
-  // Déterminer les éléments de navigation en fonction du rôle
   const navItems = [];
   
-  // Seulement ajouter "Voir les Documents" si un utilisateur est connecté
   if (session) {
     navItems.push({ 
       title: "Voir les Documents", 
@@ -86,7 +82,6 @@ const Navbar = () => {
     });
   }
 
-  // Seuls les admin et operators peuvent voir ces pages
   if (profile?.role && ["admin", "operator"].includes(profile.role)) {
     navItems.unshift({ 
       title: "Traiter les Documents", 
@@ -117,7 +112,7 @@ const Navbar = () => {
   };
 
   return (
-    <Sidebar>
+    <Sidebar className="relative z-50">
       <SidebarContent>
         <SidebarGroup>
           <div className="flex items-center justify-between px-4 py-2">
