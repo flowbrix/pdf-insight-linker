@@ -9,9 +9,11 @@ const corsHeaders = {
 }
 
 async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10): Promise<Uint8Array[]> {
+  console.log('Début de l\'extraction des pages du PDF');
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
   const totalPages = Math.min(pages.length, maxPages);
+  console.log(`Nombre total de pages trouvées: ${pages.length}, pages à traiter: ${totalPages}`);
   
   const extractedPages: Uint8Array[] = [];
   for (let i = 0; i < totalPages; i++) {
@@ -20,6 +22,7 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
     newPdf.addPage(copiedPage);
     const pageBytes = await newPdf.save();
     extractedPages.push(pageBytes);
+    console.log(`Page ${i + 1} extraite avec succès`);
   }
   
   return extractedPages;
@@ -27,12 +30,20 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 
 async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
   try {
+    console.log('Début de l\'analyse avec Mistral Vision');
     const base64PDF = Buffer.from(pdfBytes).toString('base64');
+    console.log('PDF converti en base64');
     
+    const mistralApiKey = Deno.env.get("MISTRAL_API");
+    if (!mistralApiKey) {
+      throw new Error('Clé API Mistral manquante');
+    }
+    
+    console.log('Envoi de la requête à Mistral API...');
     const response = await fetch("https://api.mistral.ai/v1/vision", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${Deno.env.get("MISTRAL_API")}`,
+        "Authorization": `Bearer ${mistralApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -57,15 +68,15 @@ async function analyzeWithMistralVision(pdfBytes: Uint8Array): Promise<any> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Mistral API error response:', errorText);
+      console.error('Erreur de réponse Mistral API:', errorText);
       throw new Error(`Erreur Mistral API: ${errorText}`);
     }
 
     const result = await response.json();
-    console.log('Mistral API response:', result);
+    console.log('Réponse Mistral reçue avec succès:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error('Error in analyzeWithMistralVision:', error);
+    console.error('Erreur dans analyzeWithMistralVision:', error);
     throw error;
   }
 }
@@ -77,6 +88,7 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Début du traitement de la requête');
     const reqBody = await req.json();
     const { documentId } = reqBody;
 
@@ -84,7 +96,7 @@ serve(async (req) => {
       throw new Error('Document ID is required')
     }
 
-    console.log('Processing document with ID:', documentId);
+    console.log('Traitement du document avec ID:', documentId);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -92,6 +104,7 @@ serve(async (req) => {
     )
 
     // 1. Récupérer le document PDF depuis le storage
+    console.log('Récupération des informations du document depuis la base de données...');
     const { data: document } = await supabase
       .from('documents')
       .select('file_path')
@@ -102,29 +115,34 @@ serve(async (req) => {
       throw new Error('Document not found');
     }
 
+    console.log('Téléchargement du fichier PDF depuis le storage...');
     const { data: pdfData, error: pdfError } = await supabase.storage
       .from('documents')
       .download(document.file_path);
 
     if (pdfError) {
+      console.error('Erreur lors du téléchargement du PDF:', pdfError);
       throw pdfError;
     }
 
     // 2. Extraire les pages
+    console.log('Conversion du PDF en bytes...');
     const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
     const pdfPages = await extractPagesFromPDF(pdfBytes);
-    console.log(`Extracted ${pdfPages.length} pages from PDF`);
+    console.log(`Extraction réussie de ${pdfPages.length} pages du PDF`);
 
     // 3. Pour chaque page
     for (let i = 0; i < pdfPages.length; i++) {
       const pageNumber = i + 1;
-      console.log(`Processing page ${pageNumber}`);
+      console.log(`Début du traitement de la page ${pageNumber}`);
 
       try {
         // Analyser avec Mistral Vision
+        console.log(`Envoi de la page ${pageNumber} à Mistral Vision...`);
         const analysisResult = await analyzeWithMistralVision(pdfPages[i]);
         
         // Sauvegarder les résultats
+        console.log(`Sauvegarde du contenu de la page ${pageNumber}...`);
         await supabase.from('document_pages').insert({
           document_id: documentId,
           page_number: pageNumber,
@@ -134,8 +152,10 @@ serve(async (req) => {
         // Pour chaque paire clé:valeur trouvée
         const extractedData = analysisResult.choices[0].message.content;
         try {
+          console.log(`Analyse des données extraites de la page ${pageNumber}:`, extractedData);
           const keyValuePairs = JSON.parse(extractedData);
           for (const [key, value] of Object.entries(keyValuePairs)) {
+            console.log(`Sauvegarde de la paire - Clé: ${key}, Valeur: ${value}`);
             await supabase.from('extracted_data').insert({
               document_id: documentId,
               key_name: key,
@@ -144,15 +164,16 @@ serve(async (req) => {
             });
           }
         } catch (e) {
-          console.error('Error parsing Mistral response:', e);
+          console.error(`Erreur lors du parsing des données de la page ${pageNumber}:`, e);
         }
       } catch (error) {
-        console.error(`Error processing page ${pageNumber}:`, error);
-        continue; // Continue with next page even if this one fails
+        console.error(`Erreur lors du traitement de la page ${pageNumber}:`, error);
+        continue; // Continue avec la page suivante même si celle-ci échoue
       }
     }
 
     // Mettre à jour le document
+    console.log('Mise à jour du statut du document...');
     await supabase
       .from('documents')
       .update({
@@ -163,6 +184,7 @@ serve(async (req) => {
       })
       .eq('id', documentId);
 
+    console.log('Traitement du document terminé avec succès');
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -171,7 +193,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Erreur globale:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
