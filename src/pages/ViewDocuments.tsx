@@ -29,6 +29,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Badge } from "@/components/ui/badge";
 
 type Sector = "SAT" | "Embarquement" | "Cable" | "all";
 
@@ -106,6 +107,32 @@ const ViewDocuments = () => {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-500';
+      case 'processing':
+        return 'bg-blue-500';
+      case 'error':
+        return 'bg-red-500';
+      default:
+        return 'bg-yellow-500';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Traité';
+      case 'processing':
+        return 'En cours';
+      case 'error':
+        return 'Erreur';
+      default:
+        return 'En attente';
+    }
+  };
+
   const totalPages = documents
     ? Math.ceil(documents.total / itemsPerPage)
     : 0;
@@ -135,6 +162,7 @@ const ViewDocuments = () => {
                 <TableHead>Nom du fichier</TableHead>
                 <TableHead>Secteur</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Statut</TableHead>
                 <TableHead>Date de création</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -150,6 +178,11 @@ const ViewDocuments = () => {
                   </TableCell>
                   <TableCell>{doc.sector}</TableCell>
                   <TableCell>{doc.document_type}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`${getStatusColor(doc.status)} text-white`}>
+                      {getStatusText(doc.status)}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     {new Date(doc.created_at!).toLocaleDateString("fr-FR")}
                   </TableCell>

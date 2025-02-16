@@ -36,12 +36,12 @@ export const processDocument = async ({
   onUploadProgress,
   onProcessingProgress,
 }: ProcessDocumentParams) => {
-  // Simuler la progression de l'upload
-  const uploadInterval = simulateProgress(onUploadProgress, 3000);
-
   // 1. Upload du fichier dans le bucket
   const fileExt = file.name.split('.').pop();
   const filePath = `${crypto.randomUUID()}.${fileExt}`;
+
+  // Simuler la progression de l'upload
+  const uploadInterval = simulateProgress(onUploadProgress, 3000);
 
   const { error: uploadError } = await supabase.storage
     .from('documents')
@@ -66,6 +66,7 @@ export const processDocument = async ({
       atelier_id: atelierId,
       liaison_id: liaisonId || null,
       client_visible: makeVisible,
+      status: 'pending',
     })
     .select()
     .single();

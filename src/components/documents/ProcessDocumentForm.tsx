@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +56,7 @@ const ProcessDocumentForm = () => {
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
     setUploadProgress(0);
+    setProcessingProgress(0);
   };
 
   const handleSubmit = async () => {
@@ -103,7 +105,7 @@ const ProcessDocumentForm = () => {
         setProcessingProgress(0);
       }, 2000);
 
-      toast.success("Document uploadé avec succès et traité");
+      toast.success("Document uploadé avec succès et traitement lancé");
     } catch (error) {
       console.error('Erreur:', error);
       toast.error("Erreur lors du traitement du document");
