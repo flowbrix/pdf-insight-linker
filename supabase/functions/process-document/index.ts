@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import * as pdf2text from "https://deno.land/x/pdf2text@0.1.1/mod.ts"
+import * as pdf from "https://deno.land/x/pdf@v0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -77,7 +77,16 @@ serve(async (req) => {
 
     // 3. Extraire le texte du PDF
     console.log('Début de l\'extraction du texte...')
-    const pdfText = await pdf2text.default(fileData)
+    const pdfDocument = await pdf.default(fileData)
+    let pdfText = '';
+    
+    // On limite l'extraction aux 10 premières pages
+    const numPages = Math.min(pdfDocument.numPages(), 10);
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdfDocument.getPage(i);
+      pdfText += await page.text() + '\n';
+    }
+    
     console.log('Texte extrait :', pdfText.substring(0, 500) + '...') // Log des 500 premiers caractères
 
     // 4. Rechercher les valeurs pour chaque clé
@@ -87,7 +96,7 @@ serve(async (req) => {
       return {
         key_name: key.name,
         extracted_value: value || 'Non trouvé',
-        page_number: 1 // Note: pdf2text ne fournit pas l'information de la page, on met 1 par défaut
+        page_number: 1 // Note: même si on extrait de plusieurs pages, on garde 1 par défaut
       }
     })
 
