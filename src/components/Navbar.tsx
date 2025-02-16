@@ -13,10 +13,10 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Process Documents", url: "/process", icon: Upload },
-  { title: "View Documents", url: "/documents", icon: FileText },
-  { title: "Manage Users", url: "/users", icon: Users },
-  { title: "Manage Liaisons", url: "/liaisons", icon: Database },
+  { title: "Traiter les Documents", url: "/process", icon: Upload },
+  { title: "Voir les Documents", url: "/documents", icon: FileText },
+  { title: "Gérer les Utilisateurs", url: "/users", icon: Users },
+  { title: "Gérer les Liaisons", url: "/liaisons", icon: Database },
 ];
 
 const Navbar = () => {

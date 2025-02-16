@@ -11,19 +11,19 @@ const Index = () => {
           PDF Insight Linker
         </h1>
         <p className="mx-auto max-w-[700px] text-gray-500 md:text-xl dark:text-gray-400">
-          Streamline your document processing workflow with intelligent OCR technology. Extract, verify, and manage your PDF documents efficiently.
+          Optimisez votre flux de traitement documentaire avec notre technologie OCR intelligente. Extrayez, vérifiez et gérez vos documents PDF efficacement.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
             <Link to="/process">
               <Upload className="mr-2 h-5 w-5" />
-              Start Processing
+              Commencer le Traitement
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
             <Link to="/documents">
               <FileText className="mr-2 h-5 w-5" />
-              View Documents
+              Voir les Documents
             </Link>
           </Button>
         </div>
@@ -32,18 +32,18 @@ const Index = () => {
       <div className="mt-20 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <FeatureCard
           icon={Upload}
-          title="Intelligent Processing"
-          description="Process up to 150 pages with advanced OCR technology for accurate data extraction."
+          title="Traitement Intelligent"
+          description="Traitez jusqu'à 150 pages avec une technologie OCR avancée pour une extraction précise des données."
         />
         <FeatureCard
           icon={FileText}
-          title="Document Management"
-          description="Organize and access your documents with powerful filtering and search capabilities."
+          title="Gestion Documentaire"
+          description="Organisez et accédez à vos documents avec des capacités puissantes de filtrage et de recherche."
         />
         <FeatureCard
           icon={Users}
-          title="Role-Based Access"
-          description="Secure access control with administrator, operator, and client user roles."
+          title="Accès Basé sur les Rôles"
+          description="Contrôle d'accès sécurisé avec des rôles d'administrateur, d'opérateur et de client."
         />
       </div>
     </div>
