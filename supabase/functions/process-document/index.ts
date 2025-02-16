@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
@@ -43,7 +44,14 @@ function findValueForKey(text: string, key: { name: string, alternativeNames: st
 
 async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
   try {
-    const worker = await createWorker('fra');
+    // Configuration spécifique pour l'environnement Edge Function
+    const worker = await createWorker('fra', {
+      // Forcer l'utilisation de WASM sans dépendre du DOM
+      workerPath: 'https://unpkg.com/tesseract.js@4.1.1/dist/worker.min.js',
+      corePath: 'https://unpkg.com/tesseract.js-core@4.0.3/tesseract-core.wasm.js',
+      logger: msg => console.log('Tesseract Worker:', msg)
+    });
+
     console.log('Tesseract worker initialized');
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
@@ -57,11 +65,19 @@ async function extractTextWithTesseract(pdfBytes: Uint8Array): Promise<string> {
       const page = pages[i];
       const { width, height } = page.getSize();
       
-      const pngImage = await page.toPng();
+      // Convertir la page en PNG avec une résolution appropriée
+      const pngImage = await page.toPng({
+        width: width * 2, // Augmenter la résolution pour une meilleure reconnaissance
+        height: height * 2
+      });
       
-      const { data: { text } } = await worker.recognize(pngImage);
+      // Reconnaissance du texte avec configuration spécifique
+      const { data: { text } } = await worker.recognize(pngImage, {
+        lang: 'fra',
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789°.-_/\\:',
+      });
+      
       extractedText += text + '\n';
-      
       console.log(`Extracted text from page ${i + 1}:`, text.substring(0, 200));
     }
     
