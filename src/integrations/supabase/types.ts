@@ -226,6 +226,33 @@ export type Database = {
           },
         ]
       }
+      image_tests: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          extracted_text: string | null
+          id: string
+          image_path: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          extracted_text?: string | null
+          id?: string
+          image_path: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          extracted_text?: string | null
+          id?: string
+          image_path?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       liaisons: {
         Row: {
           active: boolean | null

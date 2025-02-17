@@ -12,6 +12,7 @@ import ManageUsers from "./pages/ManageUsers";
 import ManageLiaisons from "./pages/ManageLiaisons";
 import ViewDocuments from "./pages/ViewDocuments";
 import Auth from "./pages/Auth";
+import ImageTest from "./pages/ImageTest";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="users" element={<ManageUsers />} />
             <Route path="liaisons" element={<ManageLiaisons />} />
             <Route path="auth" element={<Auth />} />
+            <Route path="test-image" element={<ImageTest />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
