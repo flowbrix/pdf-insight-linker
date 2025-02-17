@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
-import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
+import * as PDFJS from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,12 +12,13 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-const pdfjsLib = pdfjs as any;
-pdfjsLib.GlobalWorkerOptions = pdfjsLib.GlobalWorkerOptions || {};
+// Initialisation correcte de PDF.js
+const pdfjsLib = PDFJS;
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.skypack.dev/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 
 async function convertPDFPageToImage(pdfBytes: Uint8Array, pageNumber: number): Promise<Uint8Array> {
-  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+  const pdf = await loadingTask.promise;
   const page = await pdf.getPage(pageNumber);
   
   const scale = 2.0;
