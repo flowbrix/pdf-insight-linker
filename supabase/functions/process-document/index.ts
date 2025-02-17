@@ -1,9 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { createRequire } from "https://deno.land/std@0.177.0/node/module.ts";
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-lib');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    const { documentId } = await req.json()
+    const { documentId, filePath, bucketName } = await req.json()
+    
+    console.log(`Traitement du document ${documentId} depuis ${bucketName}/${filePath}`)
     
     // Initialiser le client Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -41,17 +41,22 @@ serve(async (req) => {
       .eq('id', documentId)
 
     // Récupérer le fichier PDF
-    const { data: pdfData } = await supabase.storage
-      .from('documents')
-      .download(document.file_path)
+    const { data: pdfData, error: downloadError } = await supabase.storage
+      .from(bucketName)
+      .download(filePath)
 
-    if (!pdfData) {
-      throw new Error('Impossible de récupérer le PDF')
+    if (downloadError || !pdfData) {
+      throw new Error(`Impossible de récupérer le PDF: ${downloadError?.message}`)
     }
 
+    console.log('PDF récupéré, chargement...')
+
     // Charger le PDF avec pdf-lib
-    const pdfDoc = await pdf.PDFDocument.load(await pdfData.arrayBuffer())
+    const arrayBuffer = await pdfData.arrayBuffer()
+    const pdfDoc = await PDFDocument.load(arrayBuffer)
     const totalPages = pdfDoc.getPageCount()
+
+    console.log(`Nombre total de pages: ${totalPages}`)
 
     // Mettre à jour le nombre total de pages
     await supabase
@@ -59,9 +64,13 @@ serve(async (req) => {
       .update({ total_pages: totalPages })
       .eq('id', documentId)
 
+    console.log('Création des entrées pour chaque page...')
+
     // Pour chaque page, créer une entrée dans la table document_pages
     for (let pageNum = 0; pageNum < totalPages; pageNum++) {
       const imagePath = `${document.id}/page-${pageNum + 1}.jpg`
+      
+      console.log(`Traitement de la page ${pageNum + 1}/${totalPages}`)
       
       await supabase
         .from('document_pages')
@@ -81,6 +90,8 @@ serve(async (req) => {
         processed_at: new Date().toISOString()
       })
       .eq('id', documentId)
+
+    console.log('Traitement terminé avec succès')
 
     return new Response(
       JSON.stringify({ 
