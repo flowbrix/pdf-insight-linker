@@ -4,8 +4,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
 import * as pdfjs from 'https://cdn.skypack.dev/pdfjs-dist@3.11.174'
 
-const baseHeaders = {
-  'Content-Type': 'application/json',
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Request-Headers': '*',
+  'Content-Type': 'application/json'
 }
 
 const pdfjsLib = pdfjs as any;
@@ -58,9 +62,10 @@ async function extractPagesFromPDF(pdfBytes: Uint8Array, maxPages: number = 10):
 }
 
 serve(async (req) => {
-  // Handler OPTIONS pour la compatibilité navigateur
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: baseHeaders });
+    return new Response(null, {
+      headers: corsHeaders
+    });
   }
 
   try {
@@ -72,7 +77,7 @@ serve(async (req) => {
       console.error('Document ID manquant');
       return new Response(
         JSON.stringify({ error: 'Document ID is required' }), 
-        { headers: baseHeaders, status: 400 }
+        { headers: corsHeaders, status: 400 }
       );
     }
 
@@ -93,7 +98,7 @@ serve(async (req) => {
       console.error('Document non trouvé:', docError);
       return new Response(
         JSON.stringify({ error: 'Document not found' }), 
-        { headers: baseHeaders, status: 404 }
+        { headers: corsHeaders, status: 404 }
       );
     }
 
@@ -134,7 +139,7 @@ serve(async (req) => {
         success: true,
         message: `Document processed successfully - ${pages.length} pages analyzed` 
       }),
-      { headers: baseHeaders }
+      { headers: corsHeaders }
     );
   } catch (error) {
     console.error('Erreur lors du traitement:', error);
@@ -143,7 +148,7 @@ serve(async (req) => {
         error: error.message,
         details: error.stack
       }),
-      { headers: baseHeaders, status: 500 }
+      { headers: corsHeaders, status: 500 }
     );
   }
 });
