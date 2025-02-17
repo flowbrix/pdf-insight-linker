@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
@@ -11,7 +12,17 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
+async function extractFirstPageAsPdf(pdfArrayBuffer: ArrayBuffer): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
+  const newPdfDoc = await PDFDocument.create();
+  
+  const [firstPage] = await newPdfDoc.copyPages(pdfDoc, [0]);
+  newPdfDoc.addPage(firstPage);
+  
+  return await newPdfDoc.save();
+}
+
+async function processDocumentWithVision(fileData: Uint8Array): Promise<any> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     if (!apiKey) {
@@ -19,7 +30,7 @@ async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
     }
 
     console.log('Construction de la requête Vision API...');
-    const base64Content = encodeBase64(new Uint8Array(fileData));
+    const base64Content = encodeBase64(fileData);
     
     const requestBody = {
       requests: [{
@@ -60,18 +71,14 @@ async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
 }
 
 serve(async (req) => {
-  let documentId: string | undefined;
-
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: corsHeaders
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
     console.log('Début du traitement de la requête');
     const body = await req.json();
-    documentId = body.documentId;
+    const documentId = body.documentId;
 
     if (!documentId) {
       console.error('Document ID manquant');
@@ -90,20 +97,6 @@ serve(async (req) => {
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-
-    console.log('Mise à jour du statut initial...');
-    const { error: statusError } = await supabaseClient
-      .from('documents')
-      .update({ 
-        status: 'processing',
-        ocr_status: 'processing'
-      })
-      .eq('id', documentId);
-
-    if (statusError) {
-      console.error('Erreur lors de la mise à jour du statut initial:', statusError);
-      throw statusError;
-    }
 
     console.log('Recherche du document:', documentId);
     const { data: document, error: docError } = await supabaseClient
@@ -131,26 +124,21 @@ serve(async (req) => {
       throw new Error('Fichier non trouvé dans le storage');
     }
 
-    console.log('Traitement du fichier PDF...');
+    console.log('Extraction de la première page...');
     const pdfArrayBuffer = await fileData.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
-    const numPages = pdfDoc.getPageCount();
-    console.log(`Nombre de pages dans le PDF: ${numPages}`);
-
+    const firstPagePdf = await extractFirstPageAsPdf(pdfArrayBuffer);
+    
     console.log('Envoi à Google Cloud Vision...');
-    const visionResult = await processDocumentWithVision(pdfArrayBuffer);
-    console.log('Résultat de Vision API:', visionResult);
+    const visionResult = await processDocumentWithVision(firstPagePdf);
 
-    // Mise à jour avec l'opération de traitement en cours
+    // Mise à jour du document avec le résultat
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseClient
       .from('documents')
       .update({
         status: 'processing',
-        ocr_status: 'processing',
-        total_pages: numPages,
-        processed_at: now,
-        operation_id: visionResult.name
+        total_pages: 1,
+        processed_at: now
       })
       .eq('id', documentId);
 
@@ -164,8 +152,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         message: 'Traitement du document initié',
-        pages: numPages,
-        operation_id: visionResult.name
+        pages: 1
       }),
       { headers: corsHeaders }
     );
@@ -173,7 +160,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erreur lors du traitement:', error);
     
-    if (documentId) {
+    if (body?.documentId) {
       try {
         const supabaseClient = createClient(
           Deno.env.get('SUPABASE_URL') ?? '',
@@ -187,7 +174,7 @@ serve(async (req) => {
             ocr_status: 'error',
             ocr_error: error instanceof Error ? error.message : 'Erreur inconnue'
           })
-          .eq('id', documentId);
+          .eq('id', body.documentId);
       } catch (updateError) {
         console.error('Erreur lors de la mise à jour du statut d\'erreur:', updateError);
       }
