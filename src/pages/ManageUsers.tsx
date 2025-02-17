@@ -1,63 +1,13 @@
+
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Edit, Plus, X } from "lucide-react";
-
-type Profile = {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  role: "admin" | "operator" | "client";
-  active: boolean;
-};
-
-type Liaison = {
-  id: string;
-  name: string;
-  active: boolean;
-};
-
-type ClientLiaison = {
-  client_id: string;
-  liaison_id: string;
-};
-
-type NewUser = {
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: "admin" | "operator" | "client";
-  liaison_id?: string;
-};
+import { Plus } from "lucide-react";
+import { type Profile, type NewUser } from "@/types/user";
+import { CreateUserDialog } from "@/components/users/CreateUserDialog";
+import { UserList } from "@/components/users/UserList";
 
 const ManageUsers = () => {
   const queryClient = useQueryClient();
@@ -94,11 +44,11 @@ const ManageUsers = () => {
         .order("name", { ascending: true });
 
       if (error) throw error;
-      return data as Liaison[];
+      return data;
     },
   });
 
-  const { data: clientLiaisons, isLoading: isLoadingClientLiaisons } = useQuery({
+  const { data: clientLiaisons } = useQuery({
     queryKey: ["client_liaisons", selectedUser?.id],
     queryFn: async () => {
       if (!selectedUser?.id) return [];
@@ -108,7 +58,7 @@ const ManageUsers = () => {
         .eq("client_id", selectedUser.id);
 
       if (error) throw error;
-      return data as ClientLiaison[];
+      return data;
     },
     enabled: !!selectedUser?.id,
   });
@@ -125,7 +75,6 @@ const ManageUsers = () => {
     }
     toast.success("Rôle mis à jour avec succès");
     queryClient.invalidateQueries({ queryKey: ["profiles"] });
-    queryClient.invalidateQueries({ queryKey: ["client_liaisons"] });
   };
 
   const updateUserStatus = async (userId: string, active: boolean) => {
@@ -293,260 +242,32 @@ const ManageUsers = () => {
           Nouvel utilisateur
         </Button>
       </div>
-      
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Actions</TableHead>
-              <TableHead>Liaisons</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {profiles?.map((profile) => (
-              <TableRow key={profile.id}>
-                <TableCell>
-                  {profile.first_name || profile.last_name
-                    ? `${profile.first_name || ""} ${profile.last_name || ""}`
-                    : "Non renseigné"}
-                </TableCell>
-                <TableCell>{profile.email}</TableCell>
-                <TableCell>
-                  <Select
-                    defaultValue={profile.role}
-                    onValueChange={(value: Profile["role"]) =>
-                      updateUserRole(profile.id, value)
-                    }
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrateur</SelectItem>
-                      <SelectItem value="operator">Opérateur</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={profile.active ? "success" : "destructive"}
-                    className="w-24 justify-center"
-                  >
-                    {profile.active ? "Actif" : "Inactif"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="flex items-center gap-2">
-                  <Switch
-                    checked={profile.active}
-                    onCheckedChange={(checked) =>
-                      updateUserStatus(profile.id, checked)
-                    }
-                  />
-                  <Dialog open={isDialogOpen && selectedUser?.id === profile.id} onOpenChange={(open) => {
-                    setIsDialogOpen(open);
-                    if (open) {
-                      setSelectedUser(profile);
-                      setEditedUser({
-                        first_name: profile.first_name,
-                        last_name: profile.last_name,
-                      });
-                    }
-                  }}>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Modifier l'utilisateur</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="firstName">Prénom</Label>
-                          <Input
-                            id="firstName"
-                            value={editedUser.first_name || ""}
-                            onChange={(e) =>
-                              setEditedUser({
-                                ...editedUser,
-                                first_name: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="lastName">Nom</Label>
-                          <Input
-                            id="lastName"
-                            value={editedUser.last_name || ""}
-                            onChange={(e) =>
-                              setEditedUser({
-                                ...editedUser,
-                                last_name: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <Button onClick={handleEditUser}>Enregistrer</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </TableCell>
-                <TableCell>
-                  {profile.role === "client" && (
-                    <div className="flex flex-col gap-2">
-                      <Select
-                        onValueChange={(liaisonId) =>
-                          assignLiaison(profile.id, liaisonId)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Assigner une liaison" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {liaisons
-                            ?.filter(
-                              (l) =>
-                                l.active &&
-                                !clientLiaisons?.some(
-                                  (cl) =>
-                                    cl.client_id === profile.id &&
-                                    cl.liaison_id === l.id
-                                )
-                            )
-                            .map((liaison) => (
-                              <SelectItem key={liaison.id} value={liaison.id}>
-                                {liaison.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex flex-wrap gap-2">
-                        {clientLiaisons
-                          ?.filter((cl) => cl.client_id === profile.id)
-                          .map((cl) => {
-                            const liaison = liaisons?.find(
-                              (l) => l.id === cl.liaison_id
-                            );
-                            return (
-                              liaison && (
-                                <Badge
-                                  key={cl.liaison_id}
-                                  className="flex items-center gap-1"
-                                >
-                                  {liaison.name}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-4 w-4 p-0 hover:bg-transparent"
-                                    onClick={() =>
-                                      removeLiaison(profile.id, liaison.id)
-                                    }
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </Badge>
-                              )
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="firstName">Prénom</Label>
-              <Input
-                id="firstName"
-                value={newUser.first_name}
-                onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="lastName">Nom</Label>
-              <Input
-                id="lastName"
-                value={newUser.last_name}
-                onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="role">Rôle</Label>
-              <Select
-                value={newUser.role}
-                onValueChange={(value: "admin" | "operator" | "client") =>
-                  setNewUser({ ...newUser, role: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administrateur</SelectItem>
-                  <SelectItem value="operator">Opérateur</SelectItem>
-                  <SelectItem value="client">Client</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {newUser.role === "client" && (
-              <div className="grid gap-2">
-                <Label htmlFor="liaison">Liaison</Label>
-                <Select
-                  value={newUser.liaison_id}
-                  onValueChange={(value) =>
-                    setNewUser({ ...newUser, liaison_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une liaison" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {liaisons?.filter(l => l.active).map((liaison) => (
-                      <SelectItem key={liaison.id} value={liaison.id}>
-                        {liaison.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={createUser}>
-              Créer
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <UserList
+        profiles={profiles || []}
+        liaisons={liaisons || []}
+        clientLiaisons={clientLiaisons || []}
+        selectedUser={selectedUser}
+        editedUser={editedUser}
+        isDialogOpen={isDialogOpen}
+        onUpdateRole={updateUserRole}
+        onUpdateStatus={updateUserStatus}
+        onDialogOpenChange={setIsDialogOpen}
+        onEditUser={setSelectedUser}
+        onEditedUserChange={setEditedUser}
+        onSaveEdit={handleEditUser}
+        onAssignLiaison={assignLiaison}
+        onRemoveLiaison={removeLiaison}
+      />
+
+      <CreateUserDialog
+        isOpen={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        newUser={newUser}
+        onNewUserChange={setNewUser}
+        onCreateUser={createUser}
+        liaisons={liaisons || []}
+      />
     </div>
   );
 };
