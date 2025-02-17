@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { decode } from "https://deno.land/x/pdfjs@v0.1.0/mod.ts"
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,40 +39,77 @@ serve(async (req) => {
     }
 
     try {
-      // Lire le contenu du PDF
-      const pdfData = new Uint8Array(await pdfFile.arrayBuffer())
-      const pdf = await decode(pdfData)
+      // Configuration de PDF.js
+      const data = new Uint8Array(await pdfFile.arrayBuffer())
       
-      // On ne traite que la première page car le PDF ne contient qu'une page
-      const page = pdf.pages[0]
+      // Charger le PDF
+      const loadingTask = pdfjsLib.getDocument({ data })
+      const pdf = await loadingTask.promise
       
-      console.log(`Dimensions de la page: ${page.width}x${page.height}`)
+      // Récupérer la première page
+      const page = await pdf.getPage(1)
+      const viewport = page.getViewport({ scale: 1.0 })
       
-      // Pour l'instant, on simule juste la conversion pour vérifier que la lecture du PDF fonctionne
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      console.log(`Dimensions de la page: ${viewport.width}x${viewport.height}`)
+
+      // Préparer le canvas pour le rendu
+      const canvas = new OffscreenCanvas(viewport.width, viewport.height)
+      const context = canvas.getContext('2d')
+      
+      // Configurer le contexte de rendu
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      }
+
+      // Rendre la page
+      await page.render(renderContext).promise
+      
+      // Convertir le canvas en PNG
+      const pngBlob = await canvas.convertToBlob({ type: 'image/png' })
+      const pngBuffer = await pngBlob.arrayBuffer()
+
+      // Générer le chemin du fichier PNG
+      const pngPath = pdfPath.replace('.pdf', '.png')
+
+      // Upload du PNG
+      const { error: uploadError } = await supabase.storage
+        .from('document_pages')
+        .upload(pngPath, pngBuffer, {
+          contentType: 'image/png',
+          upsert: true
+        })
+
+      if (uploadError) {
+        throw new Error(`Erreur lors de l'upload du PNG: ${uploadError.message}`)
+      }
 
       // Mettre à jour le statut
       await supabase
         .from('document_pages')
         .update({ 
-          png_conversion_status: 'completed'
+          png_conversion_status: 'completed',
+          png_path: pngPath
         })
         .eq('id', pageId)
+
+      console.log(`Conversion en PNG réussie pour la page ${pageId}`)
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'PDF lu avec succès, prêt pour la conversion',
+          message: 'Conversion en PNG réussie',
+          png_path: pngPath,
           dimensions: {
-            width: page.width,
-            height: page.height
+            width: viewport.width,
+            height: viewport.height
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
 
     } catch (conversionError) {
-      console.error('Erreur lors de la lecture du PDF:', conversionError)
+      console.error('Erreur lors de la conversion:', conversionError)
       throw conversionError
     }
 
