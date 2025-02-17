@@ -333,6 +333,7 @@ export type Database = {
     }
     Enums: {
       document_sector: "Embarquement" | "SAT" | "Cable"
+      document_status: "pending" | "processing" | "completed" | "error"
       document_type: "Qualité" | "Mesures" | "Production"
       user_role: "admin" | "operator" | "client"
     }

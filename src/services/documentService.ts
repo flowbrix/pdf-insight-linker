@@ -75,6 +75,18 @@ export const processDocument = async ({
     }
 
     onUploadProgress(100);
+    onProcessingProgress(10);
+
+    // 3. Appeler l'Edge Function pour traiter le document
+    const { error: processError } = await supabase.functions.invoke('process-document', {
+      body: { documentId: document.id },
+    });
+
+    if (processError) {
+      throw processError;
+    }
+
+    onProcessingProgress(100);
     
     return document;
   } catch (error) {
