@@ -63,24 +63,44 @@ export const processDocument = async ({
     onUploadProgress(100);
     onProcessingProgress(10);
 
-    // 3. Déclencher le traitement OCR via une Edge Function
-    console.log('Calling Edge function with document ID:', document.id);
-    
-    const { data: functionData, error: functionError } = await supabase.functions.invoke(
+    // 3. Déclencher le traitement OCR
+    const { data: processData, error: processError } = await supabase.functions.invoke(
       'process-document',
       {
         body: { documentId: document.id },
       }
     );
 
-    if (functionError) {
-      console.error('Processing error:', functionError);
-      throw functionError;
+    if (processError) {
+      throw processError;
     }
 
-    console.log('Edge function response:', functionData);
+    onProcessingProgress(50);
 
-    onProcessingProgress(100);
+    // 4. Vérifier périodiquement le statut jusqu'à ce que le traitement soit terminé
+    let isProcessing = true;
+    while (isProcessing) {
+      const { data: statusData, error: statusError } = await supabase.functions.invoke(
+        'check-document-status',
+        {
+          body: { documentId: document.id },
+        }
+      );
+
+      if (statusError) {
+        throw statusError;
+      }
+
+      if (statusData.status === 'completed') {
+        isProcessing = false;
+        onProcessingProgress(100);
+      } else if (statusData.status === 'error') {
+        throw new Error(statusData.error || 'Erreur lors du traitement du document');
+      } else {
+        // Attendre 5 secondes avant la prochaine vérification
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
 
     return document;
   } catch (error) {

@@ -140,6 +140,7 @@ export type Database = {
           ocr_completed_at: string | null
           ocr_error: string | null
           ocr_status: string | null
+          operation_id: string | null
           processed: boolean | null
           processed_at: string | null
           processed_by: string | null
@@ -162,6 +163,7 @@ export type Database = {
           ocr_completed_at?: string | null
           ocr_error?: string | null
           ocr_status?: string | null
+          operation_id?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
@@ -184,6 +186,7 @@ export type Database = {
           ocr_completed_at?: string | null
           ocr_error?: string | null
           ocr_status?: string | null
+          operation_id?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
