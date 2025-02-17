@@ -12,60 +12,32 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-async function convertPDFPageToImage(pdfBytes: ArrayBuffer, pageNum: number): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const page = pdfDoc.getPages()[pageNum];
-  
-  // Créer un nouveau document PDF avec une seule page
-  const singlePagePdf = await PDFDocument.create();
-  const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum]);
-  singlePagePdf.addPage(copiedPage);
-  
-  const pdfBytes2 = await singlePagePdf.save();
-  
-  // Utiliser pdf2pic pour convertir en PNG
-  const { fromPath } = await import('https://esm.sh/pdf2pic@3.1.1');
-  
-  const options = {
-    density: 300,
-    saveFilename: `page-${pageNum}`,
-    format: "png",
-    width: 2480,
-    height: 3508
-  };
-  
-  const convert = fromPath(new Uint8Array(pdfBytes2), options);
-  const result = await convert(pageNum + 1);
-  
-  return result.buffer;
-}
-
-async function analyzeDocumentWithVision(imageBuffer: ArrayBuffer): Promise<any> {
+async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     if (!apiKey) {
       throw new Error('Clé API Google Cloud Vision non configurée');
     }
 
-    console.log('Préparation de l\'image pour Vision API...');
-    const base64Content = base64Encode(new Uint8Array(imageBuffer));
+    console.log('Préparation du document pour Vision API...');
+    const base64Content = base64Encode(new Uint8Array(fileBuffer));
     
     console.log('Construction de la requête Vision API...');
     const requestBody = {
       requests: [{
-        image: {
+        inputConfig: {
+          mimeType: 'application/pdf',
           content: base64Content
         },
         features: [{
-          type: 'DOCUMENT_TEXT_DETECTION',
-          maxResults: 1
+          type: 'DOCUMENT_TEXT_DETECTION'
         }]
       }]
     };
 
     console.log('Envoi de la requête à Google Cloud Vision...');
     const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      `https://vision.googleapis.com/v1/files:asyncBatchAnnotate?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -162,55 +134,41 @@ serve(async (req) => {
       throw new Error('Fichier non trouvé dans le storage');
     }
 
-    console.log('Conversion du fichier...');
+    console.log('Traitement du fichier PDF...');
     const pdfArrayBuffer = await fileData.arrayBuffer();
     const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
     const numPages = pdfDoc.getPageCount();
-    
     console.log(`Nombre de pages dans le PDF: ${numPages}`);
-    let allText = '';
 
-    for (let i = 0; i < numPages; i++) {
-      console.log(`Traitement de la page ${i + 1}/${numPages}`);
-      const pageImage = await convertPDFPageToImage(pdfArrayBuffer, i);
-      const visionResult = await analyzeDocumentWithVision(pageImage);
-      const pageText = visionResult.responses[0]?.fullTextAnnotation?.text;
-      
-      if (pageText) {
-        allText += pageText + '\n\n';
-      }
-    }
+    console.log('Envoi à Google Cloud Vision...');
+    const visionResult = await analyzeDocumentWithVision(pdfArrayBuffer);
+    console.log('Résultat de Vision API:', visionResult);
 
-    if (!allText.trim()) {
-      throw new Error('Aucun texte n\'a pu être extrait du document');
-    }
-
-    console.log('Mise à jour des résultats...');
+    // Mise à jour avec l'opération de traitement en cours
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseClient
       .from('documents')
       .update({
-        status: 'completed',
-        ocr_status: 'completed',
-        ocr_completed_at: now,
-        extracted_text: allText,
-        processed: true,
+        status: 'processing',
+        ocr_status: 'processing',
+        total_pages: numPages,
         processed_at: now,
-        total_pages: numPages
+        operation_id: visionResult.name // L'ID de l'opération asynchrone
       })
       .eq('id', documentId);
 
     if (updateError) {
-      console.error('Erreur lors de la mise à jour finale:', updateError);
+      console.error('Erreur lors de la mise à jour:', updateError);
       throw updateError;
     }
 
-    console.log('Traitement terminé avec succès');
+    console.log('Traitement initié avec succès');
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Document traité avec succès',
-        pages: numPages
+        message: 'Traitement du document initié',
+        pages: numPages,
+        operation_id: visionResult.name
       }),
       { headers: corsHeaders }
     );
