@@ -177,70 +177,130 @@ export type Database = {
       }
       documents: {
         Row: {
+          activity_type: string | null
+          amorce_number: string | null
           atelier_id: string | null
+          cable_diameter: number | null
+          cable_type: string | null
           client_visible: boolean | null
+          cote: string | null
           created_at: string | null
           created_by: string | null
+          cuve: string | null
           document_type: Database["public"]["Enums"]["document_type"]
+          equipment_number: string | null
           extracted_text: Json | null
+          extremite_inf_number: string | null
+          extremite_number: string | null
+          extremite_sup_number: string | null
+          fibers: string | null
           file_name: string
           file_path: string
           id: string
+          length_number: string | null
           liaison_id: string | null
+          machine: string | null
+          metrage: number | null
           ocr_completed_at: string | null
           ocr_error: string | null
           ocr_status: string | null
           operation_id: string | null
+          plan_type: string | null
+          plan_version: string | null
           processed: boolean | null
           processed_at: string | null
           processed_by: string | null
+          recette: string | null
+          scenario: string | null
+          section_number: string | null
           sector: Database["public"]["Enums"]["document_sector"]
+          segment: string | null
           status: string | null
           total_pages: number | null
           updated_at: string | null
         }
         Insert: {
+          activity_type?: string | null
+          amorce_number?: string | null
           atelier_id?: string | null
+          cable_diameter?: number | null
+          cable_type?: string | null
           client_visible?: boolean | null
+          cote?: string | null
           created_at?: string | null
           created_by?: string | null
+          cuve?: string | null
           document_type: Database["public"]["Enums"]["document_type"]
+          equipment_number?: string | null
           extracted_text?: Json | null
+          extremite_inf_number?: string | null
+          extremite_number?: string | null
+          extremite_sup_number?: string | null
+          fibers?: string | null
           file_name: string
           file_path: string
           id?: string
+          length_number?: string | null
           liaison_id?: string | null
+          machine?: string | null
+          metrage?: number | null
           ocr_completed_at?: string | null
           ocr_error?: string | null
           ocr_status?: string | null
           operation_id?: string | null
+          plan_type?: string | null
+          plan_version?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
+          recette?: string | null
+          scenario?: string | null
+          section_number?: string | null
           sector: Database["public"]["Enums"]["document_sector"]
+          segment?: string | null
           status?: string | null
           total_pages?: number | null
           updated_at?: string | null
         }
         Update: {
+          activity_type?: string | null
+          amorce_number?: string | null
           atelier_id?: string | null
+          cable_diameter?: number | null
+          cable_type?: string | null
           client_visible?: boolean | null
+          cote?: string | null
           created_at?: string | null
           created_by?: string | null
+          cuve?: string | null
           document_type?: Database["public"]["Enums"]["document_type"]
+          equipment_number?: string | null
           extracted_text?: Json | null
+          extremite_inf_number?: string | null
+          extremite_number?: string | null
+          extremite_sup_number?: string | null
+          fibers?: string | null
           file_name?: string
           file_path?: string
           id?: string
+          length_number?: string | null
           liaison_id?: string | null
+          machine?: string | null
+          metrage?: number | null
           ocr_completed_at?: string | null
           ocr_error?: string | null
           ocr_status?: string | null
           operation_id?: string | null
+          plan_type?: string | null
+          plan_version?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
+          recette?: string | null
+          scenario?: string | null
+          section_number?: string | null
           sector?: Database["public"]["Enums"]["document_sector"]
+          segment?: string | null
           status?: string | null
           total_pages?: number | null
           updated_at?: string | null
