@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
@@ -10,7 +11,7 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-async function processDocumentWithVision(pdfUrl: string): Promise<any> {
+async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     if (!apiKey) {
@@ -18,13 +19,13 @@ async function processDocumentWithVision(pdfUrl: string): Promise<any> {
     }
 
     console.log('Construction de la requête Vision API...');
+    const base64Content = btoa(String.fromCharCode(...new Uint8Array(fileData)));
+    
     const requestBody = {
       requests: [{
         inputConfig: {
-          mimeType: 'application/pdf',
-          gcsSource: {
-            uri: pdfUrl
-          }
+          content: base64Content,
+          mimeType: 'application/pdf'
         },
         features: [{
           type: 'DOCUMENT_TEXT_DETECTION'
@@ -131,26 +132,6 @@ serve(async (req) => {
       throw new Error('Fichier non trouvé dans le storage');
     }
 
-    // Copier le fichier dans le bucket temporaire
-    const tempFilePath = `${documentId}/${document.file_path}`;
-    const { error: uploadTempError } = await supabaseClient.storage
-      .from('temp_documents')
-      .upload(tempFilePath, fileData);
-
-    if (uploadTempError) {
-      console.error('Erreur lors de l\'upload temporaire:', uploadTempError);
-      throw uploadTempError;
-    }
-
-    // Obtenir l'URL publique du fichier temporaire
-    const { data: tempFileUrl } = await supabaseClient.storage
-      .from('temp_documents')
-      .getPublicUrl(tempFilePath);
-
-    if (!tempFileUrl?.publicUrl) {
-      throw new Error('Impossible d\'obtenir l\'URL du fichier temporaire');
-    }
-
     console.log('Traitement du fichier PDF...');
     const pdfArrayBuffer = await fileData.arrayBuffer();
     const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
@@ -158,7 +139,7 @@ serve(async (req) => {
     console.log(`Nombre de pages dans le PDF: ${numPages}`);
 
     console.log('Envoi à Google Cloud Vision...');
-    const visionResult = await processDocumentWithVision(tempFileUrl.publicUrl);
+    const visionResult = await processDocumentWithVision(pdfArrayBuffer);
     console.log('Résultat de Vision API:', visionResult);
 
     // Mise à jour avec l'opération de traitement en cours
@@ -178,15 +159,6 @@ serve(async (req) => {
       console.error('Erreur lors de la mise à jour:', updateError);
       throw updateError;
     }
-
-    // Nettoyage du fichier temporaire en arrière-plan
-    EdgeRuntime.waitUntil(
-      supabaseClient.storage
-        .from('temp_documents')
-        .remove([tempFilePath])
-        .then(() => console.log('Fichier temporaire supprimé'))
-        .catch(error => console.error('Erreur lors de la suppression du fichier temporaire:', error))
-    );
 
     console.log('Traitement initié avec succès');
     return new Response(
