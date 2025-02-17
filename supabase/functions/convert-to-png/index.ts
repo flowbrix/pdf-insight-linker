@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,43 +38,42 @@ serve(async (req) => {
     }
 
     try {
-      // Configuration de PDF.js
-      const data = new Uint8Array(await pdfFile.arrayBuffer())
-      
-      // Charger le PDF
-      const loadingTask = pdfjsLib.getDocument({ data })
-      const pdf = await loadingTask.promise
-      
-      // Récupérer la première page
-      const page = await pdf.getPage(1)
-      const viewport = page.getViewport({ scale: 1.0 })
-      
-      console.log(`Dimensions de la page: ${viewport.width}x${viewport.height}`)
+      // Créer un fichier temporaire pour le PDF
+      const tempPdfPath = `/tmp/${documentId}_${pageId}.pdf`
+      await Deno.writeFile(tempPdfPath, new Uint8Array(await pdfFile.arrayBuffer()))
 
-      // Préparer le canvas pour le rendu
-      const canvas = new OffscreenCanvas(viewport.width, viewport.height)
-      const context = canvas.getContext('2d')
-      
-      // Configurer le contexte de rendu
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
+      // Créer le répertoire de sortie
+      const outputDir = `/tmp/${documentId}`
+      await Deno.mkdir(outputDir, { recursive: true })
+
+      // Utiliser pdftoppm (de Poppler) pour la conversion
+      const process = new Deno.Command("pdftoppm", {
+        args: [
+          "-png",
+          "-r", "300",  // 300 DPI
+          tempPdfPath,
+          `${outputDir}/page`
+        ],
+      });
+
+      const { code, stdout, stderr } = await process.output()
+
+      if (code !== 0) {
+        const errorOutput = new TextDecoder().decode(stderr)
+        throw new Error(`Erreur lors de la conversion: ${errorOutput}`)
       }
 
-      // Rendre la page
-      await page.render(renderContext).promise
-      
-      // Convertir le canvas en PNG
-      const pngBlob = await canvas.convertToBlob({ type: 'image/png' })
-      const pngBuffer = await pngBlob.arrayBuffer()
+      // Lire le fichier PNG généré
+      const pngPath = `${outputDir}/page-1.png`
+      const pngData = await Deno.readFile(pngPath)
 
-      // Générer le chemin du fichier PNG
-      const pngPath = pdfPath.replace('.pdf', '.png')
+      // Générer le chemin de stockage pour le PNG
+      const storagePngPath = pdfPath.replace('.pdf', '.png')
 
       // Upload du PNG
       const { error: uploadError } = await supabase.storage
         .from('document_pages')
-        .upload(pngPath, pngBuffer, {
+        .upload(storagePngPath, pngData, {
           contentType: 'image/png',
           upsert: true
         })
@@ -84,12 +82,17 @@ serve(async (req) => {
         throw new Error(`Erreur lors de l'upload du PNG: ${uploadError.message}`)
       }
 
+      // Nettoyer les fichiers temporaires
+      await Deno.remove(tempPdfPath)
+      await Deno.remove(pngPath)
+      await Deno.remove(outputDir, { recursive: true })
+
       // Mettre à jour le statut
       await supabase
         .from('document_pages')
         .update({ 
           png_conversion_status: 'completed',
-          png_path: pngPath
+          png_path: storagePngPath
         })
         .eq('id', pageId)
 
@@ -99,11 +102,7 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           message: 'Conversion en PNG réussie',
-          png_path: pngPath,
-          dimensions: {
-            width: viewport.width,
-            height: viewport.height
-          }
+          png_path: storagePngPath
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
