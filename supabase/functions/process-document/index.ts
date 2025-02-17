@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { encode as base64Encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
+import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,16 +12,43 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> {
+async function convertPDFPageToImage(pdfBytes: ArrayBuffer, pageNum: number): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const page = pdfDoc.getPages()[pageNum];
+  
+  // Créer un nouveau document PDF avec une seule page
+  const singlePagePdf = await PDFDocument.create();
+  const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum]);
+  singlePagePdf.addPage(copiedPage);
+  
+  const pdfBytes2 = await singlePagePdf.save();
+  
+  // Utiliser pdf2pic pour convertir en PNG
+  const { fromPath } = await import('https://esm.sh/pdf2pic@3.1.1');
+  
+  const options = {
+    density: 300,
+    saveFilename: `page-${pageNum}`,
+    format: "png",
+    width: 2480,
+    height: 3508
+  };
+  
+  const convert = fromPath(new Uint8Array(pdfBytes2), options);
+  const result = await convert(pageNum + 1);
+  
+  return result.buffer;
+}
+
+async function analyzeDocumentWithVision(imageBuffer: ArrayBuffer): Promise<any> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     if (!apiKey) {
       throw new Error('Clé API Google Cloud Vision non configurée');
     }
 
-    console.log('Préparation du fichier pour Vision API...');
-    const uint8Array = new Uint8Array(fileBuffer);
-    const base64Content = base64Encode(uint8Array);
+    console.log('Préparation de l\'image pour Vision API...');
+    const base64Content = base64Encode(new Uint8Array(imageBuffer));
     
     console.log('Construction de la requête Vision API...');
     const requestBody = {
@@ -135,15 +163,25 @@ serve(async (req) => {
     }
 
     console.log('Conversion du fichier...');
-    const arrayBuffer = await fileData.arrayBuffer();
-    console.log('Taille du fichier:', arrayBuffer.byteLength, 'bytes');
+    const pdfArrayBuffer = await fileData.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
+    const numPages = pdfDoc.getPageCount();
+    
+    console.log(`Nombre de pages dans le PDF: ${numPages}`);
+    let allText = '';
 
-    console.log('Envoi à Google Cloud Vision...');
-    const visionResult = await analyzeDocumentWithVision(arrayBuffer);
+    for (let i = 0; i < numPages; i++) {
+      console.log(`Traitement de la page ${i + 1}/${numPages}`);
+      const pageImage = await convertPDFPageToImage(pdfArrayBuffer, i);
+      const visionResult = await analyzeDocumentWithVision(pageImage);
+      const pageText = visionResult.responses[0]?.fullTextAnnotation?.text;
+      
+      if (pageText) {
+        allText += pageText + '\n\n';
+      }
+    }
 
-    console.log('Extraction du texte...');
-    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text;
-    if (!extractedText) {
+    if (!allText.trim()) {
       throw new Error('Aucun texte n\'a pu être extrait du document');
     }
 
@@ -155,9 +193,10 @@ serve(async (req) => {
         status: 'completed',
         ocr_status: 'completed',
         ocr_completed_at: now,
-        extracted_text: extractedText,
+        extracted_text: allText,
         processed: true,
-        processed_at: now
+        processed_at: now,
+        total_pages: numPages
       })
       .eq('id', documentId);
 
@@ -170,7 +209,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Document traité avec succès'
+        message: 'Document traité avec succès',
+        pages: numPages
       }),
       { headers: corsHeaders }
     );
@@ -178,7 +218,6 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erreur lors du traitement:', error);
     
-    // Tenter de mettre à jour le statut en cas d'erreur
     if (documentId) {
       try {
         const supabaseClient = createClient(
