@@ -16,13 +16,9 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
     throw new Error('Clé API Google Cloud Vision non configurée');
   }
 
-  // Convertir ArrayBuffer en Base64 de manière sécurisée
+  // Convertir ArrayBuffer en Base64
   const uint8Array = new Uint8Array(fileBuffer);
-  const chunks: string[] = [];
-  uint8Array.forEach((byte) => {
-    chunks.push(String.fromCharCode(byte));
-  });
-  const base64Content = btoa(chunks.join(''));
+  const base64Content = btoa(String.fromCharCode.apply(null, uint8Array));
   
   const requestBody = {
     requests: [{
@@ -38,24 +34,31 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
 
   console.log('Envoi de la requête à Google Cloud Vision...');
   
-  const response = await fetch(
-    `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
+  try {
+    const response = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Erreur Google Cloud Vision:', errorText);
+      throw new Error(`Erreur Google Cloud Vision: ${response.status} - ${errorText}`);
     }
-  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Erreur Google Cloud Vision:', errorText);
-    throw new Error(`Erreur Google Cloud Vision: ${errorText}`);
+    const result = await response.json();
+    console.log('Réponse de Google Cloud Vision reçue:', JSON.stringify(result).substring(0, 200) + '...');
+    return result;
+  } catch (error) {
+    console.error('Erreur lors de l\'appel à Google Cloud Vision:', error);
+    throw error;
   }
-
-  return await response.json();
 }
 
 serve(async (req) => {
@@ -79,10 +82,25 @@ serve(async (req) => {
     }
 
     console.log('Initialisation du client Supabase');
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Variables d\'environnement Supabase manquantes');
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Mise à jour initiale du statut
+    const updateStatus = await supabaseClient
+      .from('documents')
+      .update({ 
+        status: 'processing',
+        ocr_status: 'processing'
+      })
+      .eq('id', documentId);
+
+    console.log('Mise à jour du statut initial:', updateStatus);
 
     console.log('Recherche du document:', documentId);
     const { data: document, error: docError } = await supabaseClient
@@ -107,49 +125,79 @@ serve(async (req) => {
 
     if (fileError) {
       console.error('Erreur lors du téléchargement:', fileError);
+      await supabaseClient
+        .from('documents')
+        .update({ 
+          status: 'error',
+          ocr_status: 'error',
+          ocr_error: `Erreur lors du téléchargement: ${fileError.message}`
+        })
+        .eq('id', documentId);
       throw fileError;
     }
 
-    // Mise à jour du statut
-    await supabaseClient
-      .from('documents')
-      .update({ 
-        status: 'processing',
-        ocr_status: 'processing'
-      })
-      .eq('id', documentId);
-
     // Conversion du Blob en ArrayBuffer
     const arrayBuffer = await fileData.arrayBuffer();
+    console.log('Taille du fichier:', arrayBuffer.byteLength, 'bytes');
 
     // Analyse avec Google Cloud Vision
     console.log('Envoi à Google Cloud Vision');
     const visionResult = await analyzeDocumentWithVision(arrayBuffer);
+    console.log('Résultat Vision reçu, mise à jour de la base de données');
+
+    // Extraction du texte
+    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
+    console.log('Texte extrait (premiers 200 caractères):', extractedText.substring(0, 200));
 
     // Mise à jour des résultats
     const now = new Date().toISOString();
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('documents')
       .update({
         status: 'completed',
         ocr_status: 'completed',
         ocr_completed_at: now,
-        extracted_text: visionResult.responses[0].fullTextAnnotation?.text || '',
+        extracted_text: extractedText,
         processed: true,
         processed_at: now
       })
       .eq('id', documentId);
 
+    if (updateError) {
+      console.error('Erreur lors de la mise à jour finale:', updateError);
+      throw updateError;
+    }
+
     console.log('Traitement terminé avec succès');
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Document traité avec succès par Google Cloud Vision'
+        message: 'Document traité avec succès'
       }),
       { headers: corsHeaders }
     );
   } catch (error) {
     console.error('Erreur lors du traitement:', error);
+    
+    // Tenter de mettre à jour le statut en cas d'erreur
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      await supabaseClient
+        .from('documents')
+        .update({ 
+          status: 'error',
+          ocr_status: 'error',
+          ocr_error: error.message
+        })
+        .eq('id', body?.documentId);
+    } catch (updateError) {
+      console.error('Erreur lors de la mise à jour du statut d\'erreur:', updateError);
+    }
+
     return new Response(
       JSON.stringify({ 
         error: error.message,
