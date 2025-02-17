@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { encode as base64Encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,9 +17,9 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
     throw new Error('Clé API Google Cloud Vision non configurée');
   }
 
-  // Convertir ArrayBuffer en Base64
+  // Utilisation de l'encodeur base64 de Deno
   const uint8Array = new Uint8Array(fileBuffer);
-  const base64Content = btoa(String.fromCharCode.apply(null, uint8Array));
+  const base64Content = base64Encode(uint8Array);
   
   const requestBody = {
     requests: [{
@@ -53,7 +54,7 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
     }
 
     const result = await response.json();
-    console.log('Réponse de Google Cloud Vision reçue:', JSON.stringify(result).substring(0, 200) + '...');
+    console.log('Réponse de Google Cloud Vision reçue');
     return result;
   } catch (error) {
     console.error('Erreur lors de l\'appel à Google Cloud Vision:', error);
@@ -92,15 +93,14 @@ serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Mise à jour initiale du statut
-    const updateStatus = await supabaseClient
+    console.log('Mise à jour du statut initial');
+    await supabaseClient
       .from('documents')
       .update({ 
         status: 'processing',
         ocr_status: 'processing'
       })
       .eq('id', documentId);
-
-    console.log('Mise à jour du statut initial:', updateStatus);
 
     console.log('Recherche du document:', documentId);
     const { data: document, error: docError } = await supabaseClient
@@ -147,7 +147,7 @@ serve(async (req) => {
 
     // Extraction du texte
     const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
-    console.log('Texte extrait (premiers 200 caractères):', extractedText.substring(0, 200));
+    console.log('Texte extrait (longueur):', extractedText.length);
 
     // Mise à jour des résultats
     const now = new Date().toISOString();
