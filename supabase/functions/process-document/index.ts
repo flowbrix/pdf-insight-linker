@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
@@ -24,9 +23,8 @@ async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
     
     const requestBody = {
       requests: [{
-        inputConfig: {
-          content: base64Content,
-          mimeType: 'application/pdf'
+        image: {
+          content: base64Content
         },
         features: [{
           type: 'DOCUMENT_TEXT_DETECTION'
@@ -36,7 +34,7 @@ async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
 
     console.log('Envoi de la requête à Google Cloud Vision...');
     const response = await fetch(
-      `https://vision.googleapis.com/v1/files:asyncBatchAnnotate?key=${apiKey}`,
+      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
