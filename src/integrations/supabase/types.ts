@@ -87,6 +87,50 @@ export type Database = {
           },
         ]
       }
+      conversion_jobs: {
+        Row: {
+          attempts: number | null
+          created_at: string
+          error_message: string | null
+          id: string
+          input_path: string
+          output_path: string | null
+          page_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_path: string
+          output_path?: string | null
+          page_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_path?: string
+          output_path?: string | null
+          page_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_jobs_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "document_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_pages: {
         Row: {
           created_at: string | null
