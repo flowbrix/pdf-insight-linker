@@ -1,130 +1,139 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { Canvas } from "https://deno.land/x/canvas/mod.ts";
+import { processImage } from './pdfToImage.ts'
 
+// En-têtes CORS nécessaires
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
+  // Gestion des requêtes OPTIONS pour CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
     const { documentId, filePath, bucketName } = await req.json()
-    
-    console.log(`Traitement du document ${documentId} depuis ${bucketName}/${filePath}`)
-    
-    // Initialiser le client Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    console.log(`Début du traitement pour le document ${documentId}`)
+
+    // Initialisation du client Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Récupérer le fichier PDF
-    const { data: pdfData, error: downloadError } = await supabase.storage
+    // Récupération du fichier PDF
+    const { data: pdfFile, error: downloadError } = await supabase.storage
       .from(bucketName)
       .download(filePath)
 
-    if (downloadError || !pdfData) {
-      throw new Error(`Impossible de récupérer le PDF: ${downloadError?.message}`)
+    if (downloadError) {
+      throw new Error(`Erreur lors de la récupération du PDF: ${downloadError.message}`)
     }
 
-    console.log('PDF récupéré, conversion en cours...')
+    // Mettre à jour le statut du document
+    await supabase
+      .from('documents')
+      .update({ status: 'processing' })
+      .eq('id', documentId)
 
-    // Charger le PDF
-    const arrayBuffer = await pdfData.arrayBuffer()
-    const pdfDoc = await PDFDocument.load(arrayBuffer)
-    const totalPages = Math.min(pdfDoc.getPageCount(), 10) // Maximum 10 pages
-
-    console.log(`Traitement de ${totalPages} pages`)
-
-    // Pour chaque page
-    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-      console.log(`Traitement de la page ${pageNum + 1}/${totalPages}`)
-      
-      const page = pdfDoc.getPages()[pageNum]
-      const { width, height } = page.getSize()
-      
-      // Créer un nouveau document PDF avec une seule page
-      const singlePagePdf = await PDFDocument.create()
-      const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum])
-      singlePagePdf.addPage(copiedPage)
-      
-      // Convertir en PNG en utilisant Canvas
-      const canvas = new Canvas(width, height)
-      const ctx = canvas.getContext('2d')
-      
-      // Dessiner la page PDF sur le canvas
-      const base64 = await singlePagePdf.saveAsBase64()
-      await ctx.drawImage(`data:application/pdf;base64,${base64}`, 0, 0, width, height)
-      
-      // Obtenir les données PNG
-      const pngData = canvas.toBuffer('image/png')
-      const imagePath = `${documentId}/page-${pageNum + 1}.png`
-
-      // Uploader l'image dans le bucket document_pages
-      const { error: uploadError } = await supabase.storage
-        .from('document_pages')
-        .upload(imagePath, pngData, {
-          contentType: 'image/png',
-          upsert: true
-        })
-
-      if (uploadError) {
-        throw new Error(`Erreur lors de l'upload de la page ${pageNum + 1}: ${uploadError.message}`)
-      }
-
-      // Obtenir l'URL publique
-      const { data: { publicUrl } } = supabase.storage
-        .from('document_pages')
-        .getPublicUrl(imagePath)
-
-      console.log(`Page ${pageNum + 1} convertie et stockée: ${publicUrl}`)
-      
-      // Créer l'entrée dans la table document_pages
-      await supabase
-        .from('document_pages')
-        .insert({
-          document_id: documentId,
-          page_number: pageNum + 1,
-          image_path: imagePath,
-        })
+    // Envoyer le PDF à l'API de conversion (à implémenter)
+    const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY')
+    if (!apiKey) {
+      throw new Error('Clé API Google Cloud non configurée')
     }
 
-    // Mettre à jour le document
+    // Traitement des 10 premières pages maximum
+    const maxPages = 10
+    const pagePromises = []
+
+    console.log('Début de la conversion des pages...')
+    
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      // Note: processImage est une fonction à implémenter qui utilisera l'API Google Cloud Vision
+      const pagePromise = processImage(pdfFile, pageNum, documentId)
+        .then(async (imageData) => {
+          if (!imageData) return null
+
+          const imagePath = `${documentId}/page-${pageNum}.png`
+          
+          // Upload de l'image convertie
+          const { error: uploadError } = await supabase.storage
+            .from('document_pages')
+            .upload(imagePath, imageData, {
+              contentType: 'image/png',
+              upsert: true
+            })
+
+          if (uploadError) {
+            console.error(`Erreur upload page ${pageNum}:`, uploadError)
+            return null
+          }
+
+          // Obtenir l'URL publique
+          const { data: { publicUrl } } = supabase.storage
+            .from('document_pages')
+            .getPublicUrl(imagePath)
+
+          console.log(`Page ${pageNum} convertie et stockée: ${publicUrl}`)
+
+          // Enregistrer les métadonnées de la page
+          await supabase
+            .from('document_pages')
+            .insert({
+              document_id: documentId,
+              page_number: pageNum,
+              image_path: imagePath
+            })
+
+          return { pageNum, url: publicUrl }
+        })
+        .catch(error => {
+          console.error(`Erreur traitement page ${pageNum}:`, error)
+          return null
+        })
+
+      pagePromises.push(pagePromise)
+    }
+
+    // Attendre la fin du traitement de toutes les pages
+    const results = await Promise.all(pagePromises)
+    const successfulPages = results.filter(r => r !== null)
+
+    // Mise à jour finale du document
     await supabase
       .from('documents')
       .update({ 
         status: 'completed',
         processed: true,
         processed_at: new Date().toISOString(),
-        total_pages: totalPages
+        total_pages: successfulPages.length
       })
       .eq('id', documentId)
 
-    console.log('Traitement terminé avec succès')
+    console.log(`Traitement terminé. ${successfulPages.length} pages traitées.`)
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Document traité avec succès',
-        totalPages 
+      JSON.stringify({
+        success: true,
+        message: `${successfulPages.length} pages traitées avec succès`,
+        pages: successfulPages
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error) {
     console.error('Erreur:', error)
     
     // En cas d'erreur, mettre à jour le statut du document
     const { documentId } = await req.json()
     if (documentId) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
       
       await supabase
         .from('documents')
