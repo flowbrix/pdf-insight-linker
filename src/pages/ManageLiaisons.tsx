@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Link, Users } from "lucide-react";
+import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,9 +103,6 @@ const ManageLiaisons = () => {
     <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Gérer les Liaisons</h1>
-        <Link href="/manage-users" className="text-blue-500 hover:text-blue-700">
-          <Users className="w-5 h-5" />
-        </Link>
       </div>
 
       {/* Formulaire de création */}
@@ -168,4 +165,3 @@ const ManageLiaisons = () => {
 };
 
 export default ManageLiaisons;
-
