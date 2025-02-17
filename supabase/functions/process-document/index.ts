@@ -87,13 +87,13 @@ serve(async (req) => {
         continue
       }
 
-      const imagePath = `${documentId}/page-${pageNum + 1}.pdf` // temporairement en PDF
+      const imagePath = `${documentId}/page-${pageNum + 1}.pdf`
       
       // Upload de la page convertie
       const { error: uploadError } = await supabase.storage
         .from('document_pages')
         .upload(imagePath, pageData, {
-          contentType: 'application/pdf', // temporairement en PDF
+          contentType: 'application/pdf',
           upsert: true
         })
 
@@ -110,20 +110,35 @@ serve(async (req) => {
       console.log(`Page ${pageNum + 1} stockée: ${publicUrl}`)
 
       // Enregistrer les métadonnées de la page
-      const { error: insertError } = await supabase
+      const { data: pageData2, error: insertError } = await supabase
         .from('document_pages')
         .insert({
           document_id: documentId,
           page_number: pageNum + 1,
           image_path: imagePath
         })
+        .select()
+        .single()
 
       if (insertError) {
         console.error(`Erreur insertion metadata page ${pageNum + 1}:`, insertError)
         continue
       }
 
-      console.log(`Métadonnées enregistrées pour la page ${pageNum + 1}`)
+      // Déclencher la conversion en PNG
+      const { error: conversionError } = await supabase.functions.invoke('convert-to-png', {
+        body: { 
+          pageId: pageData2.id,
+          documentId: documentId,
+          pdfPath: imagePath
+        },
+      })
+
+      if (conversionError) {
+        console.error(`Erreur lors du lancement de la conversion PNG pour la page ${pageNum + 1}:`, conversionError)
+      }
+
+      console.log(`Métadonnées enregistrées et conversion PNG lancée pour la page ${pageNum + 1}`)
       processedPages.push({ pageNum: pageNum + 1, url: publicUrl })
     }
 

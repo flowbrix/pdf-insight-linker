@@ -94,6 +94,8 @@ export type Database = {
           id: string
           image_path: string
           page_number: number
+          png_conversion_status: string | null
+          png_path: string | null
           text_content: string | null
           updated_at: string | null
         }
@@ -103,6 +105,8 @@ export type Database = {
           id?: string
           image_path: string
           page_number: number
+          png_conversion_status?: string | null
+          png_path?: string | null
           text_content?: string | null
           updated_at?: string | null
         }
@@ -112,6 +116,8 @@ export type Database = {
           id?: string
           image_path?: string
           page_number?: number
+          png_conversion_status?: string | null
+          png_path?: string | null
           text_content?: string | null
           updated_at?: string | null
         }
