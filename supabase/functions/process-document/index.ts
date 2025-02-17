@@ -26,55 +26,65 @@ async function extractPageAsPdf(pdfArrayBuffer: ArrayBuffer, pageIndex: number):
   return await newPdfDoc.save();
 }
 
-async function processDocumentWithVision(fileData: Uint8Array): Promise<any> {
+async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): Promise<string> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     if (!apiKey) {
       throw new Error('Clé API Google Cloud Vision non configurée');
     }
 
-    console.log('Construction de la requête Vision API...');
-    const base64Content = encodeBase64(fileData);
-    
-    const requestBody = {
-      requests: [{
-        image: {
-          content: base64Content
-        },
-        features: [{
-          type: 'DOCUMENT_TEXT_DETECTION',
-          maxResults: 1
-        }]
-      }]
-    };
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        console.log(`Tentative ${attempt + 1} d'extraction de texte...`);
+        const base64Content = encodeBase64(fileData);
+        
+        const requestBody = {
+          requests: [{
+            image: {
+              content: base64Content
+            },
+            features: [{
+              type: 'DOCUMENT_TEXT_DETECTION',
+              maxResults: 1
+            }]
+          }]
+        };
 
-    console.log('Envoi de la requête à Google Cloud Vision...');
-    const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
+        const response = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const extractedText = result.responses?.[0]?.fullTextAnnotation?.text;
+
+        if (!extractedText) {
+          throw new Error('Aucun texte extrait dans la réponse');
+        }
+
+        console.log('Texte extrait avec succès');
+        return extractedText;
+      } catch (error) {
+        console.error(`Erreur tentative ${attempt + 1}:`, error);
+        if (attempt === maxRetries - 1) throw error;
+        attempt++;
+        await delay(2000); // Attendre 2 secondes avant de réessayer
       }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Erreur Google Cloud Vision:', errorText);
-      throw new Error(`Erreur Google Cloud Vision: ${response.status} - ${errorText}`);
     }
-
-    const result = await response.json();
-    if (!result.responses?.[0]) {
-      console.error('Réponse Vision API invalide:', result);
-      throw new Error('Réponse Vision API invalide');
-    }
-    console.log('Réponse de Google Cloud Vision reçue avec succès');
-    return result;
+    throw new Error('Échec de toutes les tentatives d\'extraction');
   } catch (error) {
-    console.error('Erreur dans processDocumentWithVision:', error);
+    console.error('Erreur finale dans processDocumentWithVision:', error);
     throw error;
   }
 }
@@ -97,7 +107,6 @@ serve(async (req) => {
       );
     }
 
-    console.log('Initialisation du client Supabase...');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -107,7 +116,7 @@ serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Recherche du document:', documentId);
+    // Recherche du document
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
       .select('*')
@@ -115,66 +124,65 @@ serve(async (req) => {
       .single();
 
     if (docError || !document) {
-      console.error('Document non trouvé:', docError);
       throw new Error(docError ? docError.message : 'Document non trouvé');
     }
 
-    console.log('Téléchargement du fichier:', document.file_path);
+    // Téléchargement du fichier
     const { data: fileData, error: fileError } = await supabaseClient.storage
       .from('documents')
       .download(document.file_path);
 
-    if (fileError) {
-      console.error('Erreur lors du téléchargement:', fileError);
-      throw fileError;
-    }
-
-    if (!fileData) {
-      throw new Error('Fichier non trouvé dans le storage');
+    if (fileError || !fileData) {
+      throw new Error('Erreur lors du téléchargement du fichier');
     }
 
     const pdfArrayBuffer = await fileData.arrayBuffer();
     const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
-    const totalPages = Math.min(pdfDoc.getPageCount(), 10); // Maximum 10 pages
+    const totalPages = Math.min(pdfDoc.getPageCount(), 10);
     console.log(`Nombre total de pages à traiter: ${totalPages}`);
 
     const extractedTextByPage: { [key: string]: string } = {};
 
-    // Traiter chaque page
+    // Traitement page par page avec attente de l'extraction
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       try {
-        console.log(`Traitement de la page ${pageIndex + 1}...`);
+        console.log(`\nTraitement de la page ${pageIndex + 1}/${totalPages}`);
         const pagePdf = await extractPageAsPdf(pdfArrayBuffer, pageIndex);
-        const visionResult = await processDocumentWithVision(pagePdf);
         
-        const pageText = visionResult.responses[0]?.fullTextAnnotation?.text;
-        if (!pageText) {
-          console.warn(`Aucun texte extrait pour la page ${pageIndex + 1}`);
-        }
-        extractedTextByPage[`page_${pageIndex + 1}`] = pageText || '';
+        // Attente active de l'extraction du texte
+        const extractedText = await processDocumentWithVision(pagePdf);
+        console.log(`Page ${pageIndex + 1}: ${extractedText.length} caractères extraits`);
+        
+        extractedTextByPage[`page_${pageIndex + 1}`] = extractedText;
 
-        // Mise à jour du progrès dans la base de données
-        await supabaseClient
+        // Mise à jour immédiate dans la base de données
+        const { error: updateError } = await supabaseClient
           .from('documents')
           .update({
             status: 'processing',
             total_pages: totalPages,
             processed_at: new Date().toISOString(),
-            extracted_text: extractedTextByPage // Mise à jour progressive du texte extrait
+            extracted_text: extractedTextByPage
           })
           .eq('id', documentId);
 
-        // Attendre un peu entre chaque appel pour éviter les limitations
-        await delay(1000);
+        if (updateError) {
+          throw new Error(`Erreur lors de la mise à jour pour la page ${pageIndex + 1}`);
+        }
+
+        // Pause entre les pages
+        if (pageIndex < totalPages - 1) {
+          await delay(2000);
+        }
       } catch (pageError) {
-        console.error(`Erreur lors du traitement de la page ${pageIndex + 1}:`, pageError);
+        console.error(`Erreur sur la page ${pageIndex + 1}:`, pageError);
         extractedTextByPage[`page_${pageIndex + 1}`] = `Erreur: ${pageError.message}`;
       }
     }
 
-    // Mise à jour finale avec tout le texte extrait
+    // Mise à jour finale
     const now = new Date().toISOString();
-    const { error: updateError } = await supabaseClient
+    const { error: finalUpdateError } = await supabaseClient
       .from('documents')
       .update({
         status: 'completed',
@@ -186,14 +194,13 @@ serve(async (req) => {
       })
       .eq('id', documentId);
 
-    if (updateError) {
-      console.error('Erreur lors de la mise à jour finale:', updateError);
-      throw updateError;
+    if (finalUpdateError) {
+      throw finalUpdateError;
     }
 
     console.log('Traitement terminé avec succès');
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         message: 'Traitement du document terminé',
         pages: totalPages,
