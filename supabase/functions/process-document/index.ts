@@ -1,10 +1,36 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import * as pdf from "https://deno.land/x/pdfjs@v0.1.0/mod.ts"
+import { createCanvas } from "https://deno.land/x/canvas@v1.4.1/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function convertPageToImage(pdfDoc: any, pageNum: number): Promise<Uint8Array | null> {
+  try {
+    const page = await pdfDoc.getPage(pageNum)
+    const viewport = page.getViewport({ scale: 1.5 }) // Scale 1.5 pour une meilleure qualité
+    
+    const canvas = createCanvas(viewport.width, viewport.height)
+    const context = canvas.getContext('2d')
+    
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    }
+    
+    await page.render(renderContext).promise
+    
+    // Convertir le canvas en PNG
+    const imageData = await canvas.toBuffer('image/png')
+    return new Uint8Array(imageData)
+  } catch (error) {
+    console.error(`Erreur conversion page ${pageNum}:`, error)
+    return null
+  }
 }
 
 serve(async (req) => {
@@ -36,40 +62,60 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', documentId)
 
-    console.log('Document PDF récupéré avec succès')
+    console.log('Document PDF récupéré, début de la conversion...')
 
-    // Pour test, on crée une "fausse" image pour simuler la conversion
-    const dummyImageData = new Uint8Array([]);  // Image vide pour test
-    const imagePath = `${documentId}/page-1.png`
+    // Charger le PDF
+    const pdfData = await pdfFile.arrayBuffer()
+    const pdfDoc = await pdf.getDocument({ data: pdfData }).promise
+    const totalPages = Math.min(pdfDoc.numPages, 10) // Maximum 10 pages
     
-    // Upload de l'image test
-    const { error: uploadError } = await supabase.storage
-      .from('document_pages')
-      .upload(imagePath, dummyImageData, {
-        contentType: 'image/png',
-        upsert: true
-      })
+    console.log(`Nombre total de pages à traiter: ${totalPages}`)
+    
+    const processedPages = []
 
-    if (uploadError) {
-      console.error('Erreur upload:', uploadError)
-      throw uploadError
+    // Traiter chaque page
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      console.log(`Traitement de la page ${pageNum}...`)
+      
+      const imageData = await convertPageToImage(pdfDoc, pageNum)
+      if (!imageData) {
+        console.error(`Échec de la conversion de la page ${pageNum}`)
+        continue
+      }
+
+      const imagePath = `${documentId}/page-${pageNum}.png`
+      
+      // Upload de l'image convertie
+      const { error: uploadError } = await supabase.storage
+        .from('document_pages')
+        .upload(imagePath, imageData, {
+          contentType: 'image/png',
+          upsert: true
+        })
+
+      if (uploadError) {
+        console.error(`Erreur upload page ${pageNum}:`, uploadError)
+        continue
+      }
+
+      // Obtenir l'URL publique
+      const { data: { publicUrl } } = supabase.storage
+        .from('document_pages')
+        .getPublicUrl(imagePath)
+
+      console.log(`Page ${pageNum} convertie et stockée: ${publicUrl}`)
+
+      // Enregistrer les métadonnées de la page
+      await supabase
+        .from('document_pages')
+        .insert({
+          document_id: documentId,
+          page_number: pageNum,
+          image_path: imagePath
+        })
+
+      processedPages.push({ pageNum, url: publicUrl })
     }
-
-    // Obtenir l'URL publique
-    const { data: { publicUrl } } = supabase.storage
-      .from('document_pages')
-      .getPublicUrl(imagePath)
-
-    console.log(`Test image stockée: ${publicUrl}`)
-
-    // Enregistrer les métadonnées de la page
-    await supabase
-      .from('document_pages')
-      .insert({
-        document_id: documentId,
-        page_number: 1,
-        image_path: imagePath
-      })
 
     // Mise à jour finale du document
     await supabase
@@ -78,17 +124,17 @@ serve(async (req) => {
         status: 'completed',
         processed: true,
         processed_at: new Date().toISOString(),
-        total_pages: 1
+        total_pages: processedPages.length
       })
       .eq('id', documentId)
 
-    console.log('Traitement de test terminé')
+    console.log(`Traitement terminé. ${processedPages.length} pages traitées.`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Test de stockage effectué',
-        pages: [{ pageNum: 1, url: publicUrl }]
+        message: `${processedPages.length} pages traitées avec succès`,
+        pages: processedPages
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
