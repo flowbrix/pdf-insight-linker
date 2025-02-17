@@ -133,7 +133,7 @@ export const DocumentList = ({ documents, onDownload }: DocumentListProps) => {
           {selectedDoc && (
             <div className="flex-1 w-full h-full">
               <iframe
-                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/documents/${selectedDoc.file_path}#toolbar=1&zoom=page-fit&navpanes=1`}
+                src={`/api/documents/${selectedDoc.file_path}`}
                 className="w-full h-[calc(95vh-56px)]"
                 title={selectedDoc.file_name}
               />
