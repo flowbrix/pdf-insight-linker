@@ -25,7 +25,7 @@ export const processDocument = async ({
   onProcessingProgress,
 }: ProcessDocumentParams) => {
   try {
-    const BUCKET_NAME = 'documents'; // Standardisation du nom du bucket
+    const BUCKET_NAME = 'documents';
     
     // 1. Upload du fichier dans le bucket
     const fileExt = file.name.split('.').pop();
@@ -35,8 +35,7 @@ export const processDocument = async ({
 
     console.log(`Tentative d'upload dans le bucket ${BUCKET_NAME}...`);
 
-    // Upload direct sans vérification préalable puisque le bucket est public
-    const { error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -77,32 +76,38 @@ export const processDocument = async ({
     onUploadProgress(100);
     onProcessingProgress(10);
 
-    console.log('Document créé, démarrage du traitement...');
+    console.log('Document créé, envoi au webhook Make.com...');
 
-    // 3. Appeler l'Edge Function pour traiter le document
-    const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
-      body: { 
-        documentId: document.id,
-        filePath: filePath,
-        bucketName: BUCKET_NAME // Ajout du nom du bucket pour le traitement
+    // 3. Obtenir l'URL publique du fichier
+    const { data: { publicUrl } } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(filePath);
+
+    // 4. Envoyer les informations au webhook Make.com
+    const webhookUrl = 'https://hook.eu2.make.com/dqqxvrkq813xytypmcbvtgt9j9kpv9pj';
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        documentId: document.id,
+        fileUrl: publicUrl,
+        fileName: file.name,
+        sector,
+        documentType: type,
+        atelierId,
+        liaisonId,
+        makeVisible,
+      }),
     });
 
-    if (processError) {
-      console.error('Erreur traitement:', processError);
-      toast.error("Erreur lors du traitement du document");
-      throw processError;
+    if (!response.ok) {
+      throw new Error(`Erreur lors de l'envoi au webhook: ${response.statusText}`);
     }
 
-    if (!processData) {
-      const error = new Error("Aucune donnée reçue du traitement");
-      console.error(error);
-      toast.error("Le traitement du document n'a pas produit de résultat");
-      throw error;
-    }
-
-    console.log('Résultat du traitement:', processData);
-    toast.success("Document traité avec succès");
+    console.log('Document envoyé avec succès au webhook');
+    toast.success("Document envoyé avec succès");
     onProcessingProgress(100);
     
     return document;
