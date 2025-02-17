@@ -41,21 +41,16 @@ export default function ImageTest() {
 
       if (insertError) throw insertError
 
-      // Analyse avec Mistral
-      const response = await fetch('/functions/v1/analyze-image-mistral', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageId: imageTest.id })
-      })
+      // Analyse avec Mistral en utilisant le client Supabase
+      const { data, error: analyzeError } = await supabase.functions
+        .invoke('analyze-image-mistral', {
+          body: { imageId: imageTest.id }
+        })
 
-      if (!response.ok) {
-        throw new Error('Erreur lors de l\'analyse')
-      }
+      if (analyzeError) throw analyzeError
+      if (!data?.extractedText) throw new Error('Aucun texte extrait')
 
-      const { extractedText: text, error } = await response.json()
-      if (error) throw new Error(error)
-
-      setExtractedText(text)
+      setExtractedText(data.extractedText)
       toast.success("Analyse terminée avec succès")
 
     } catch (error) {
