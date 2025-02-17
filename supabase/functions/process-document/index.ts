@@ -12,12 +12,12 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-async function extractFirstPageAsPdf(pdfArrayBuffer: ArrayBuffer): Promise<Uint8Array> {
+async function extractPageAsPdf(pdfArrayBuffer: ArrayBuffer, pageIndex: number): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
   const newPdfDoc = await PDFDocument.create();
   
-  const [firstPage] = await newPdfDoc.copyPages(pdfDoc, [0]);
-  newPdfDoc.addPage(firstPage);
+  const [page] = await newPdfDoc.copyPages(pdfDoc, [pageIndex]);
+  newPdfDoc.addPage(page);
   
   return await newPdfDoc.save();
 }
@@ -124,18 +124,33 @@ serve(async (req) => {
       throw new Error('Fichier non trouvé dans le storage');
     }
 
-    console.log('Extraction de la première page...');
     const pdfArrayBuffer = await fileData.arrayBuffer();
-    const firstPagePdf = await extractFirstPageAsPdf(pdfArrayBuffer);
-    
-    console.log('Envoi à Google Cloud Vision...');
-    const visionResult = await processDocumentWithVision(firstPagePdf);
+    const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
+    const totalPages = Math.min(pdfDoc.getPageCount(), 10); // Maximum 10 pages
+    console.log(`Nombre total de pages à traiter: ${totalPages}`);
 
-    // Extraction du texte du résultat de Vision API
-    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
-    console.log('Texte extrait:', extractedText);
+    const extractedTextByPage: { [key: string]: string } = {};
 
-    // Mise à jour du document avec le résultat et le texte extrait
+    // Traiter chaque page
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      console.log(`Traitement de la page ${pageIndex + 1}...`);
+      const pagePdf = await extractPageAsPdf(pdfArrayBuffer, pageIndex);
+      const visionResult = await processDocumentWithVision(pagePdf);
+      const pageText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
+      extractedTextByPage[`page_${pageIndex + 1}`] = pageText;
+
+      // Mise à jour du progrès dans la base de données
+      await supabaseClient
+        .from('documents')
+        .update({
+          status: 'processing',
+          total_pages: totalPages,
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', documentId);
+    }
+
+    // Mise à jour finale avec tout le texte extrait
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseClient
       .from('documents')
@@ -143,16 +158,14 @@ serve(async (req) => {
         status: 'completed',
         ocr_status: 'completed',
         ocr_completed_at: now,
-        total_pages: 1,
+        total_pages: totalPages,
         processed_at: now,
-        extracted_text: {
-          page_1: extractedText
-        }
+        extracted_text: extractedTextByPage
       })
       .eq('id', documentId);
 
     if (updateError) {
-      console.error('Erreur lors de la mise à jour:', updateError);
+      console.error('Erreur lors de la mise à jour finale:', updateError);
       throw updateError;
     }
 
@@ -161,8 +174,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         message: 'Traitement du document terminé',
-        pages: 1,
-        extracted_text: extractedText
+        pages: totalPages,
+        extracted_text: extractedTextByPage
       }),
       { headers: corsHeaders }
     );
