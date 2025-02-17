@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
@@ -29,8 +28,7 @@ async function processDocumentWithVision(pdfUrl: string): Promise<any> {
         },
         features: [{
           type: 'DOCUMENT_TEXT_DETECTION'
-        }],
-        pages: [-1] // Traiter toutes les pages
+        }]
       }]
     };
 
