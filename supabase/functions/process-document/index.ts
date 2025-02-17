@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
@@ -26,6 +25,23 @@ async function extractPageAsPdf(pdfArrayBuffer: ArrayBuffer, pageIndex: number):
   return await newPdfDoc.save();
 }
 
+async function savePdfPageAsJpg(supabaseClient: any, documentId: string, pageIndex: number, pdfData: Uint8Array): Promise<string> {
+  const fileName = `${documentId}/page_${pageIndex + 1}.jpg`;
+  const { error } = await supabaseClient.storage
+    .from('documents-debug')
+    .upload(fileName, pdfData, {
+      contentType: 'application/pdf',
+      upsert: true
+    });
+
+  if (error) {
+    console.error('Erreur lors de la sauvegarde de la page en JPG:', error);
+    throw error;
+  }
+
+  return fileName;
+}
+
 async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): Promise<string> {
   try {
     const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
@@ -39,7 +55,6 @@ async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): 
         console.log(`Tentative ${attempt + 1} d'extraction de texte...`);
         const base64Content = encodeBase64(fileData);
         
-        // Configuration plus détaillée pour l'API Vision
         const requestBody = {
           requests: [{
             image: {
@@ -84,7 +99,6 @@ async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): 
         const result = await response.json();
         console.log('Réponse Vision API reçue:', JSON.stringify(result, null, 2));
 
-        // Essayer d'abord DOCUMENT_TEXT_DETECTION puis TEXT_DETECTION
         let extractedText = result.responses?.[0]?.fullTextAnnotation?.text;
         
         if (!extractedText && result.responses?.[0]?.textAnnotations?.[0]?.description) {
@@ -101,7 +115,7 @@ async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): 
         console.error(`Erreur tentative ${attempt + 1}:`, error);
         if (attempt === maxRetries - 1) throw error;
         attempt++;
-        await delay(5000); // Attendre 5 secondes avant de réessayer
+        await delay(5000);
       }
     }
     throw new Error('Échec de toutes les tentatives d\'extraction');
@@ -138,7 +152,6 @@ serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Recherche du document
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
       .select('*')
@@ -149,7 +162,6 @@ serve(async (req) => {
       throw new Error(docError ? docError.message : 'Document non trouvé');
     }
 
-    // Téléchargement du fichier
     const { data: fileData, error: fileError } = await supabaseClient.storage
       .from('documents')
       .download(document.file_path);
@@ -163,21 +175,34 @@ serve(async (req) => {
     const totalPages = Math.min(pdfDoc.getPageCount(), 10);
     console.log(`Nombre total de pages à traiter: ${totalPages}`);
 
-    const extractedTextByPage: { [key: string]: string } = {};
+    const extractedTextByPage: { 
+      [key: string]: { 
+        text: string, 
+        debugImagePath?: string 
+      } 
+    } = {};
 
-    // Traitement page par page
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       try {
         console.log(`\nTraitement de la page ${pageIndex + 1}/${totalPages}`);
         const pagePdf = await extractPageAsPdf(pdfArrayBuffer, pageIndex);
         
-        // Attente active de l'extraction du texte
+        const debugImagePath = await savePdfPageAsJpg(
+          supabaseClient, 
+          documentId, 
+          pageIndex, 
+          pagePdf
+        );
+        console.log(`Page ${pageIndex + 1} sauvegardée pour débogage: ${debugImagePath}`);
+        
         const extractedText = await processDocumentWithVision(pagePdf);
         console.log(`Page ${pageIndex + 1}: ${extractedText.length} caractères extraits`);
         
-        extractedTextByPage[`page_${pageIndex + 1}`] = extractedText;
+        extractedTextByPage[`page_${pageIndex + 1}`] = {
+          text: extractedText,
+          debugImagePath
+        };
 
-        // Mise à jour immédiate dans la base de données
         const { error: updateError } = await supabaseClient
           .from('documents')
           .update({
@@ -192,17 +217,17 @@ serve(async (req) => {
           throw new Error(`Erreur lors de la mise à jour pour la page ${pageIndex + 1}`);
         }
 
-        // Pause plus longue entre les pages
         if (pageIndex < totalPages - 1) {
-          await delay(5000); // 5 secondes entre chaque page
+          await delay(5000);
         }
       } catch (pageError) {
         console.error(`Erreur sur la page ${pageIndex + 1}:`, pageError);
-        extractedTextByPage[`page_${pageIndex + 1}`] = `Erreur: ${pageError.message}`;
+        extractedTextByPage[`page_${pageIndex + 1}`] = {
+          text: `Erreur: ${pageError.message}`
+        };
       }
     }
 
-    // Mise à jour finale
     const now = new Date().toISOString();
     const { error: finalUpdateError } = await supabaseClient
       .from('documents')
