@@ -23,23 +23,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Récupérer les informations du document
-    const { data: document, error: docError } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('id', documentId)
-      .single()
-
-    if (docError || !document) {
-      throw new Error(`Document non trouvé: ${docError?.message}`)
-    }
-
-    // Mettre à jour le statut du document
-    await supabase
-      .from('documents')
-      .update({ status: 'processing' })
-      .eq('id', documentId)
-
     // Récupérer le fichier PDF
     const { data: pdfData, error: downloadError } = await supabase.storage
       .from(bucketName)
@@ -49,29 +32,51 @@ serve(async (req) => {
       throw new Error(`Impossible de récupérer le PDF: ${downloadError?.message}`)
     }
 
-    console.log('PDF récupéré, chargement...')
+    console.log('PDF récupéré, conversion en cours...')
 
     // Charger le PDF avec pdf-lib
     const arrayBuffer = await pdfData.arrayBuffer()
     const pdfDoc = await PDFDocument.load(arrayBuffer)
-    const totalPages = pdfDoc.getPageCount()
+    const totalPages = Math.min(pdfDoc.getPageCount(), 10) // Maximum 10 pages
 
-    console.log(`Nombre total de pages: ${totalPages}`)
+    console.log(`Traitement de ${totalPages} pages`)
 
-    // Mettre à jour le nombre total de pages
-    await supabase
-      .from('documents')
-      .update({ total_pages: totalPages })
-      .eq('id', documentId)
-
-    console.log('Création des entrées pour chaque page...')
-
-    // Pour chaque page, créer une entrée dans la table document_pages
+    // Pour chaque page, convertir en PNG et sauvegarder
     for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-      const imagePath = `${document.id}/page-${pageNum + 1}.jpg`
+      console.log(`Conversion de la page ${pageNum + 1}/${totalPages}`)
       
-      console.log(`Traitement de la page ${pageNum + 1}/${totalPages}`)
+      const page = pdfDoc.getPages()[pageNum]
       
+      // Convertir la page en PNG
+      const imageFormat = 'png'
+      const jpgPage = await page.exportAsImage({
+        width: page.getWidth(),
+        height: page.getHeight(),
+      })
+      
+      const imageBytes = await jpgPage.encode()
+      const imagePath = `${documentId}/page-${pageNum + 1}.png`
+
+      // Uploader l'image dans le bucket document_pages
+      const { error: uploadError } = await supabase.storage
+        .from('document_pages')
+        .upload(imagePath, imageBytes, {
+          contentType: 'image/png',
+          upsert: true
+        })
+
+      if (uploadError) {
+        throw new Error(`Erreur lors de l'upload de la page ${pageNum + 1}: ${uploadError.message}`)
+      }
+
+      // Obtenir l'URL publique
+      const { data: { publicUrl } } = supabase.storage
+        .from('document_pages')
+        .getPublicUrl(imagePath)
+
+      console.log(`Page ${pageNum + 1} convertie et stockée: ${publicUrl}`)
+      
+      // Créer l'entrée dans la table document_pages
       await supabase
         .from('document_pages')
         .insert({
@@ -81,13 +86,14 @@ serve(async (req) => {
         })
     }
 
-    // Mettre à jour le statut une fois terminé
+    // Mettre à jour le document
     await supabase
       .from('documents')
       .update({ 
         status: 'completed',
         processed: true,
-        processed_at: new Date().toISOString()
+        processed_at: new Date().toISOString(),
+        total_pages: totalPages
       })
       .eq('id', documentId)
 
@@ -103,6 +109,23 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('Erreur:', error)
+    
+    // En cas d'erreur, mettre à jour le statut du document
+    const { documentId } = await req.json()
+    if (documentId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      
+      await supabase
+        .from('documents')
+        .update({ 
+          status: 'error',
+          processed: false
+        })
+        .eq('id', documentId)
+    }
+
     return new Response(
       JSON.stringify({ 
         success: false, 
