@@ -12,6 +12,10 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
+async function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function extractPageAsPdf(pdfArrayBuffer: ArrayBuffer, pageIndex: number): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
   const newPdfDoc = await PDFDocument.create();
@@ -38,7 +42,8 @@ async function processDocumentWithVision(fileData: Uint8Array): Promise<any> {
           content: base64Content
         },
         features: [{
-          type: 'DOCUMENT_TEXT_DETECTION'
+          type: 'DOCUMENT_TEXT_DETECTION',
+          maxResults: 1
         }]
       }]
     };
@@ -62,6 +67,10 @@ async function processDocumentWithVision(fileData: Uint8Array): Promise<any> {
     }
 
     const result = await response.json();
+    if (!result.responses?.[0]) {
+      console.error('Réponse Vision API invalide:', result);
+      throw new Error('Réponse Vision API invalide');
+    }
     console.log('Réponse de Google Cloud Vision reçue avec succès');
     return result;
   } catch (error) {
@@ -133,21 +142,34 @@ serve(async (req) => {
 
     // Traiter chaque page
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
-      console.log(`Traitement de la page ${pageIndex + 1}...`);
-      const pagePdf = await extractPageAsPdf(pdfArrayBuffer, pageIndex);
-      const visionResult = await processDocumentWithVision(pagePdf);
-      const pageText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
-      extractedTextByPage[`page_${pageIndex + 1}`] = pageText;
+      try {
+        console.log(`Traitement de la page ${pageIndex + 1}...`);
+        const pagePdf = await extractPageAsPdf(pdfArrayBuffer, pageIndex);
+        const visionResult = await processDocumentWithVision(pagePdf);
+        
+        const pageText = visionResult.responses[0]?.fullTextAnnotation?.text;
+        if (!pageText) {
+          console.warn(`Aucun texte extrait pour la page ${pageIndex + 1}`);
+        }
+        extractedTextByPage[`page_${pageIndex + 1}`] = pageText || '';
 
-      // Mise à jour du progrès dans la base de données
-      await supabaseClient
-        .from('documents')
-        .update({
-          status: 'processing',
-          total_pages: totalPages,
-          processed_at: new Date().toISOString()
-        })
-        .eq('id', documentId);
+        // Mise à jour du progrès dans la base de données
+        await supabaseClient
+          .from('documents')
+          .update({
+            status: 'processing',
+            total_pages: totalPages,
+            processed_at: new Date().toISOString(),
+            extracted_text: extractedTextByPage // Mise à jour progressive du texte extrait
+          })
+          .eq('id', documentId);
+
+        // Attendre un peu entre chaque appel pour éviter les limitations
+        await delay(1000);
+      } catch (pageError) {
+        console.error(`Erreur lors du traitement de la page ${pageIndex + 1}:`, pageError);
+        extractedTextByPage[`page_${pageIndex + 1}`] = `Erreur: ${pageError.message}`;
+      }
     }
 
     // Mise à jour finale avec tout le texte extrait
