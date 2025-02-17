@@ -17,7 +17,8 @@ const FileDropzone = ({ onFileSelect }: FileDropzoneProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf']
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png']
     },
     maxFiles: 1
   });
@@ -36,9 +37,9 @@ const FileDropzone = ({ onFileSelect }: FileDropzoneProps) => {
       <Upload className="w-12 h-12 text-gray-400 mb-4" />
       <p className="text-sm text-gray-600 text-center">
         {isDragActive ? (
-          "Déposez le fichier ici..."
+          "Déposez l'image ici..."
         ) : (
-          "Glissez et déposez un fichier PDF ici, ou cliquez pour sélectionner"
+          "Glissez et déposez une image (JPG, JPEG, PNG) ici, ou cliquez pour sélectionner"
         )}
       </p>
     </div>
