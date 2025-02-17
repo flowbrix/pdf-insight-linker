@@ -124,17 +124,17 @@ export const DocumentList = ({ documents, onDownload }: DocumentListProps) => {
       </Table>
 
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-4xl h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold">
+        <DialogContent className="max-w-6xl h-[95vh] p-0">
+          <DialogHeader className="px-6 py-3 border-b">
+            <DialogTitle className="text-xl font-semibold text-center mx-auto">
               {selectedDoc?.file_name}
             </DialogTitle>
           </DialogHeader>
           {selectedDoc && (
             <div className="flex-1 w-full h-full">
               <iframe
-                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/documents/${selectedDoc.file_path}#toolbar=0`}
-                className="w-full h-[calc(90vh-80px)]"
+                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/documents/${selectedDoc.file_path}#toolbar=1&zoom=page-fit&navpanes=1`}
+                className="w-full h-[calc(95vh-56px)]"
                 title={selectedDoc.file_name}
               />
             </div>
