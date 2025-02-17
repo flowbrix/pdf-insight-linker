@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { fromPath } from 'https://esm.sh/pdf2pic@1.4.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,32 +38,48 @@ serve(async (req) => {
       throw new Error(`Erreur lors de la récupération du PDF: ${downloadError.message}`)
     }
 
-    // TODO: Implémenter la conversion en PNG avec une bibliothèque appropriée
-    // Pour l'instant, nous allons simuler la conversion
-    const pngPath = pdfPath.replace('.pdf', '.png')
-    
-    // Simuler la conversion (à remplacer par la vraie conversion)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Créer un fichier temporaire pour le PDF
+    const tempPdfPath = `/tmp/${documentId}_${pageId}.pdf`
+    await Deno.writeFile(tempPdfPath, new Uint8Array(await pdfFile.arrayBuffer()))
 
-    // Mettre à jour le statut et le chemin PNG
-    await supabase
-      .from('document_pages')
-      .update({ 
-        png_conversion_status: 'completed',
-        png_path: pngPath
-      })
-      .eq('id', pageId)
+    // Configuration de la conversion
+    const options = {
+      density: 300,
+      saveFilename: `page_${pageId}`,
+      savePath: "/tmp",
+      format: "png",
+      width: 2480, // Format A4 à 300 DPI
+      height: 3508
+    }
 
-    console.log(`Conversion en PNG terminée pour la page ${pageId}`)
+    try {
+      // Convertir le PDF en PNG
+      const convert = fromPath(tempPdfPath, options)
+      const pageImage = await convert(1) // Convertir la première page (le PDF ne contient qu'une page)
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Conversion en PNG réussie',
-        png_path: pngPath
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+      if (!pageImage || !pageImage.path) {
+        throw new Error("La conversion en PNG a échoué")
+      }
+
+      console.log(`PNG généré avec succès: ${pageImage.path}`)
+
+      // Nettoyer les fichiers temporaires
+      await Deno.remove(tempPdfPath)
+      await Deno.remove(pageImage.path)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Conversion en PNG réussie',
+          page_image: pageImage
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+
+    } catch (conversionError) {
+      console.error('Erreur lors de la conversion:', conversionError)
+      throw conversionError
+    }
 
   } catch (error) {
     console.error('Erreur:', error)
