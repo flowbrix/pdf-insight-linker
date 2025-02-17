@@ -30,28 +30,26 @@ export const processDocument = async ({
     
     onUploadProgress(10);
 
+    // Vérifier que le bucket existe avant l'upload
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const documentsBucket = buckets?.find(b => b.name === 'documents');
+    
+    if (!documentsBucket) {
+      throw new Error("Le bucket 'documents' n'existe pas");
+    }
+
+    console.log('Bucket documents trouvé, démarrage upload...');
+
     const { error: uploadError } = await supabase.storage
       .from('documents')
       .upload(filePath, file);
 
     if (uploadError) {
+      console.error('Erreur upload:', uploadError);
       throw uploadError;
     }
 
-    // Vérifier que le fichier est accessible
-    const { data: { publicUrl } } = supabase.storage
-      .from('documents')
-      .getPublicUrl(filePath);
-
-    console.log('URL publique du document:', publicUrl);
-
-    // Tester l'accès au fichier
-    const response = await fetch(publicUrl);
-    if (!response.ok) {
-      throw new Error(`Impossible d'accéder au document à l'URL: ${publicUrl}`);
-    }
-    console.log('Le document est accessible via son URL publique');
-
+    console.log('Upload réussi, création entrée base de données...');
     onUploadProgress(50);
 
     // 2. Créer l'entrée dans la table documents avec les métadonnées
@@ -71,21 +69,26 @@ export const processDocument = async ({
       .single();
 
     if (documentError) {
+      console.error('Erreur création document:', documentError);
       throw documentError;
     }
 
     onUploadProgress(100);
     onProcessingProgress(10);
 
+    console.log('Document créé, démarrage du traitement...');
+
     // 3. Appeler l'Edge Function pour traiter le document
-    const { error: processError } = await supabase.functions.invoke('process-document', {
+    const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
       body: { documentId: document.id },
     });
 
     if (processError) {
+      console.error('Erreur traitement:', processError);
       throw processError;
     }
 
+    console.log('Résultat du traitement:', processData);
     onProcessingProgress(100);
     
     return document;
