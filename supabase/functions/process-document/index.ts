@@ -131,14 +131,23 @@ serve(async (req) => {
     console.log('Envoi à Google Cloud Vision...');
     const visionResult = await processDocumentWithVision(firstPagePdf);
 
-    // Mise à jour du document avec le résultat
+    // Extraction du texte du résultat de Vision API
+    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
+    console.log('Texte extrait:', extractedText);
+
+    // Mise à jour du document avec le résultat et le texte extrait
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseClient
       .from('documents')
       .update({
-        status: 'processing',
+        status: 'completed',
+        ocr_status: 'completed',
+        ocr_completed_at: now,
         total_pages: 1,
-        processed_at: now
+        processed_at: now,
+        extracted_text: {
+          page_1: extractedText
+        }
       })
       .eq('id', documentId);
 
@@ -147,12 +156,13 @@ serve(async (req) => {
       throw updateError;
     }
 
-    console.log('Traitement initié avec succès');
+    console.log('Traitement terminé avec succès');
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Traitement du document initié',
-        pages: 1
+        message: 'Traitement du document terminé',
+        pages: 1,
+        extracted_text: extractedText
       }),
       { headers: corsHeaders }
     );
