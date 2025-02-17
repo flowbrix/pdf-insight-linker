@@ -146,6 +146,7 @@ export type Database = {
           sector: Database["public"]["Enums"]["document_sector"]
           status: string | null
           total_pages: number | null
+          updated_at: string | null
         }
         Insert: {
           atelier_id?: string | null
@@ -167,6 +168,7 @@ export type Database = {
           sector: Database["public"]["Enums"]["document_sector"]
           status?: string | null
           total_pages?: number | null
+          updated_at?: string | null
         }
         Update: {
           atelier_id?: string | null
@@ -188,6 +190,7 @@ export type Database = {
           sector?: Database["public"]["Enums"]["document_sector"]
           status?: string | null
           total_pages?: number | null
+          updated_at?: string | null
         }
         Relationships: [
           {

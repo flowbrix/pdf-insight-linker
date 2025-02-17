@@ -12,30 +12,30 @@ const corsHeaders = {
 }
 
 async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> {
-  const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
-  if (!apiKey) {
-    throw new Error('Clé API Google Cloud Vision non configurée');
-  }
-
-  // Utilisation de l'encodeur base64 de Deno
-  const uint8Array = new Uint8Array(fileBuffer);
-  const base64Content = base64Encode(uint8Array);
-  
-  const requestBody = {
-    requests: [{
-      image: {
-        content: base64Content
-      },
-      features: [{
-        type: 'DOCUMENT_TEXT_DETECTION',
-        maxResults: 1
-      }]
-    }]
-  };
-
-  console.log('Envoi de la requête à Google Cloud Vision...');
-  
   try {
+    const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
+    if (!apiKey) {
+      throw new Error('Clé API Google Cloud Vision non configurée');
+    }
+
+    console.log('Préparation du fichier pour Vision API...');
+    const uint8Array = new Uint8Array(fileBuffer);
+    const base64Content = base64Encode(uint8Array);
+    
+    console.log('Construction de la requête Vision API...');
+    const requestBody = {
+      requests: [{
+        image: {
+          content: base64Content
+        },
+        features: [{
+          type: 'DOCUMENT_TEXT_DETECTION',
+          maxResults: 1
+        }]
+      }]
+    };
+
+    console.log('Envoi de la requête à Google Cloud Vision...');
     const response = await fetch(
       `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
       {
@@ -54,10 +54,10 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
     }
 
     const result = await response.json();
-    console.log('Réponse de Google Cloud Vision reçue');
+    console.log('Réponse de Google Cloud Vision reçue avec succès');
     return result;
   } catch (error) {
-    console.error('Erreur lors de l\'appel à Google Cloud Vision:', error);
+    console.error('Erreur dans analyzeDocumentWithVision:', error);
     throw error;
   }
 }
@@ -84,7 +84,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Initialisation du client Supabase');
+    console.log('Initialisation du client Supabase...');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -94,15 +94,19 @@ serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Mise à jour initiale du statut
-    console.log('Mise à jour du statut initial');
-    await supabaseClient
+    console.log('Mise à jour du statut initial...');
+    const { error: statusError } = await supabaseClient
       .from('documents')
       .update({ 
         status: 'processing',
         ocr_status: 'processing'
       })
       .eq('id', documentId);
+
+    if (statusError) {
+      console.error('Erreur lors de la mise à jour du statut initial:', statusError);
+      throw statusError;
+    }
 
     console.log('Recherche du document:', documentId);
     const { data: document, error: docError } = await supabaseClient
@@ -113,13 +117,9 @@ serve(async (req) => {
 
     if (docError || !document) {
       console.error('Document non trouvé:', docError);
-      return new Response(
-        JSON.stringify({ error: 'Document not found' }), 
-        { headers: corsHeaders, status: 404 }
-      );
+      throw new Error(docError ? docError.message : 'Document non trouvé');
     }
 
-    // Téléchargement du document
     console.log('Téléchargement du fichier:', document.file_path);
     const { data: fileData, error: fileError } = await supabaseClient.storage
       .from('documents')
@@ -127,31 +127,27 @@ serve(async (req) => {
 
     if (fileError) {
       console.error('Erreur lors du téléchargement:', fileError);
-      await supabaseClient
-        .from('documents')
-        .update({ 
-          status: 'error',
-          ocr_status: 'error',
-          ocr_error: `Erreur lors du téléchargement: ${fileError.message}`
-        })
-        .eq('id', documentId);
       throw fileError;
     }
 
-    // Conversion du Blob en ArrayBuffer
+    if (!fileData) {
+      throw new Error('Fichier non trouvé dans le storage');
+    }
+
+    console.log('Conversion du fichier...');
     const arrayBuffer = await fileData.arrayBuffer();
     console.log('Taille du fichier:', arrayBuffer.byteLength, 'bytes');
 
-    // Analyse avec Google Cloud Vision
-    console.log('Envoi à Google Cloud Vision');
+    console.log('Envoi à Google Cloud Vision...');
     const visionResult = await analyzeDocumentWithVision(arrayBuffer);
-    console.log('Résultat Vision reçu, mise à jour de la base de données');
 
-    // Extraction du texte
-    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text || '';
-    console.log('Texte extrait (longueur):', extractedText.length);
+    console.log('Extraction du texte...');
+    const extractedText = visionResult.responses[0]?.fullTextAnnotation?.text;
+    if (!extractedText) {
+      throw new Error('Aucun texte n\'a pu être extrait du document');
+    }
 
-    // Mise à jour des résultats
+    console.log('Mise à jour des résultats...');
     const now = new Date().toISOString();
     const { error: updateError } = await supabaseClient
       .from('documents')
@@ -178,6 +174,7 @@ serve(async (req) => {
       }),
       { headers: corsHeaders }
     );
+
   } catch (error) {
     console.error('Erreur lors du traitement:', error);
     
