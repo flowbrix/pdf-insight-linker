@@ -38,6 +38,20 @@ export const processDocument = async ({
       throw uploadError;
     }
 
+    // Vérifier que le fichier est accessible
+    const { data: { publicUrl } } = supabase.storage
+      .from('documents')
+      .getPublicUrl(filePath);
+
+    console.log('URL publique du document:', publicUrl);
+
+    // Tester l'accès au fichier
+    const response = await fetch(publicUrl);
+    if (!response.ok) {
+      throw new Error(`Impossible d'accéder au document à l'URL: ${publicUrl}`);
+    }
+    console.log('Le document est accessible via son URL publique');
+
     onUploadProgress(50);
 
     // 2. Créer l'entrée dans la table documents avec les métadonnées
