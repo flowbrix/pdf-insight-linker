@@ -25,34 +25,19 @@ export const processDocument = async ({
   onProcessingProgress,
 }: ProcessDocumentParams) => {
   try {
+    const BUCKET_NAME = 'documents'; // Standardisation du nom du bucket
+    
     // 1. Upload du fichier dans le bucket
     const fileExt = file.name.split('.').pop();
     const filePath = `${crypto.randomUUID()}.${fileExt}`;
     
     onUploadProgress(10);
 
-    // Vérifier que le bucket existe avant l'upload
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    
-    if (bucketsError) {
-      console.error('Erreur lors de la vérification des buckets:', bucketsError);
-      toast.error("Erreur lors de l'accès au stockage");
-      throw bucketsError;
-    }
+    console.log(`Tentative d'upload dans le bucket ${BUCKET_NAME}...`);
 
-    const documentsBucket = buckets?.find(b => b.name === 'documents');
-    
-    if (!documentsBucket) {
-      const error = new Error("Le bucket 'documents' n'existe pas");
-      console.error(error);
-      toast.error("Configuration du stockage incorrecte");
-      throw error;
-    }
-
-    console.log('Bucket documents trouvé, démarrage upload...');
-
+    // Upload direct sans vérification préalable puisque le bucket est public
     const { error: uploadError } = await supabase.storage
-      .from('documents')
+      .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
@@ -98,7 +83,8 @@ export const processDocument = async ({
     const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
       body: { 
         documentId: document.id,
-        filePath: filePath
+        filePath: filePath,
+        bucketName: BUCKET_NAME // Ajout du nom du bucket pour le traitement
       },
     });
 
