@@ -87,41 +87,6 @@ export type Database = {
           },
         ]
       }
-      data_extraction_config: {
-        Row: {
-          active: boolean | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          id: string
-          key_name: string
-        }
-        Insert: {
-          active?: boolean | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          key_name: string
-        }
-        Update: {
-          active?: boolean | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          key_name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "data_extraction_config_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       document_pages: {
         Row: {
           created_at: string | null
@@ -167,10 +132,14 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           document_type: Database["public"]["Enums"]["document_type"]
+          extracted_text: Json | null
           file_name: string
           file_path: string
           id: string
           liaison_id: string | null
+          ocr_completed_at: string | null
+          ocr_error: string | null
+          ocr_status: string | null
           processed: boolean | null
           processed_at: string | null
           processed_by: string | null
@@ -184,10 +153,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           document_type: Database["public"]["Enums"]["document_type"]
+          extracted_text?: Json | null
           file_name: string
           file_path: string
           id?: string
           liaison_id?: string | null
+          ocr_completed_at?: string | null
+          ocr_error?: string | null
+          ocr_status?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
@@ -201,10 +174,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           document_type?: Database["public"]["Enums"]["document_type"]
+          extracted_text?: Json | null
           file_name?: string
           file_path?: string
           id?: string
           liaison_id?: string | null
+          ocr_completed_at?: string | null
+          ocr_error?: string | null
+          ocr_status?: string | null
           processed?: boolean | null
           processed_at?: string | null
           processed_by?: string | null
@@ -237,67 +214,6 @@ export type Database = {
           {
             foreignKeyName: "documents_processed_by_fkey"
             columns: ["processed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extracted_data: {
-        Row: {
-          corrected_value: string | null
-          created_at: string | null
-          created_by: string | null
-          document_id: string | null
-          extracted_value: string | null
-          id: string
-          key_name: string
-          page_number: number | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          corrected_value?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          document_id?: string | null
-          extracted_value?: string | null
-          id?: string
-          key_name: string
-          page_number?: number | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          corrected_value?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          document_id?: string | null
-          extracted_value?: string | null
-          id?: string
-          key_name?: string
-          page_number?: number | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extracted_data_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extracted_data_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extracted_data_updated_by_fkey"
-            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

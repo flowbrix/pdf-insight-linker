@@ -10,6 +10,44 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
+async function analyzeDocumentWithVision(fileBytes: Uint8Array): Promise<any> {
+  const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
+  if (!apiKey) {
+    throw new Error('Clé API Google Cloud Vision non configurée');
+  }
+
+  const base64Content = btoa(String.fromCharCode(...fileBytes));
+  
+  const requestBody = {
+    requests: [{
+      image: {
+        content: base64Content
+      },
+      features: [{
+        type: 'DOCUMENT_TEXT_DETECTION',
+        maxResults: 1
+      }]
+    }]
+  };
+
+  const response = await fetch(
+    `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur Google Cloud Vision: ${await response.text()}`);
+  }
+
+  return await response.json();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -51,20 +89,50 @@ serve(async (req) => {
       );
     }
 
-    // Pour l'instant, on met juste à jour le statut
+    // Téléchargement du document
+    console.log('Téléchargement du fichier:', document.file_path);
+    const { data: fileData, error: fileError } = await supabaseClient.storage
+      .from('documents')
+      .download(document.file_path);
+
+    if (fileError) {
+      console.error('Erreur lors du téléchargement:', fileError);
+      throw fileError;
+    }
+
+    // Mise à jour du statut
     await supabaseClient
       .from('documents')
-      .update({
-        status: 'pending_google_vision',
-        processed: false
+      .update({ 
+        status: 'processing',
+        ocr_status: 'processing'
       })
       .eq('id', documentId);
 
-    console.log('Document mis en attente de traitement Google Vision');
+    // Analyse avec Google Cloud Vision
+    console.log('Envoi à Google Cloud Vision');
+    const fileBytes = new Uint8Array(await fileData.arrayBuffer());
+    const visionResult = await analyzeDocumentWithVision(fileBytes);
+
+    // Mise à jour des résultats
+    const now = new Date().toISOString();
+    await supabaseClient
+      .from('documents')
+      .update({
+        status: 'completed',
+        ocr_status: 'completed',
+        ocr_completed_at: now,
+        extracted_text: visionResult,
+        processed: true,
+        processed_at: now
+      })
+      .eq('id', documentId);
+
+    console.log('Traitement terminé avec succès');
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Document mis en attente de traitement Google Vision'
+        message: 'Document traité avec succès par Google Cloud Vision'
       }),
       { headers: corsHeaders }
     );
