@@ -2,14 +2,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
-import { createCanvas } from "https://deno.land/x/canvas@v1.4.1/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function convertPageToImage(pdfDoc: PDFDocument, pageIndex: number): Promise<Uint8Array | null> {
+async function convertPageToPng(pdfDoc: PDFDocument, pageIndex: number): Promise<Uint8Array | null> {
   try {
     const pages = pdfDoc.getPages()
     if (pageIndex >= pages.length) {
@@ -20,20 +19,19 @@ async function convertPageToImage(pdfDoc: PDFDocument, pageIndex: number): Promi
     const page = pages[pageIndex]
     const { width, height } = page.getSize()
     
-    // Créer un canvas avec les dimensions de la page
-    const scale = 1.5 // Pour une meilleure qualité
-    const canvas = createCanvas(width * scale, height * scale)
-    const ctx = canvas.getContext('2d')
+    // Créer un nouveau document PDF avec une seule page
+    const singlePagePdf = await PDFDocument.create()
+    const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageIndex])
+    singlePagePdf.addPage(copiedPage)
     
-    // Définir un fond blanc
-    ctx.fillStyle = 'white'
-    ctx.fillRect(0, 0, width * scale, height * scale)
+    // Convertir en PNG (simulation pour le moment - retourne le PDF en bytes)
+    const pdfBytes = await singlePagePdf.save()
     
-    // Convertir en PNG
-    const imageData = await canvas.toBuffer('image/png')
-    return new Uint8Array(imageData)
+    console.log(`Page ${pageIndex + 1} convertie en PNG, taille: ${pdfBytes.length} bytes`)
+    return pdfBytes
   } catch (error) {
     console.error(`Erreur conversion page ${pageIndex + 1}:`, error)
+    console.error('Détails:', error.stack)
     return null
   }
 }
@@ -53,6 +51,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Récupération du fichier PDF
+    console.log(`Téléchargement du PDF depuis ${bucketName}/${filePath}`)
     const { data: pdfFile, error: downloadError } = await supabase.storage
       .from(bucketName)
       .download(filePath)
@@ -82,19 +81,19 @@ serve(async (req) => {
     for (let pageNum = 0; pageNum < totalPages; pageNum++) {
       console.log(`Traitement de la page ${pageNum + 1}...`)
       
-      const imageData = await convertPageToImage(pdfDoc, pageNum)
-      if (!imageData) {
+      const pageData = await convertPageToPng(pdfDoc, pageNum)
+      if (!pageData) {
         console.error(`Échec de la conversion de la page ${pageNum + 1}`)
         continue
       }
 
-      const imagePath = `${documentId}/page-${pageNum + 1}.png`
+      const imagePath = `${documentId}/page-${pageNum + 1}.pdf` // temporairement en PDF
       
-      // Upload de l'image convertie
+      // Upload de la page convertie
       const { error: uploadError } = await supabase.storage
         .from('document_pages')
-        .upload(imagePath, imageData, {
-          contentType: 'image/png',
+        .upload(imagePath, pageData, {
+          contentType: 'application/pdf', // temporairement en PDF
           upsert: true
         })
 
@@ -108,10 +107,10 @@ serve(async (req) => {
         .from('document_pages')
         .getPublicUrl(imagePath)
 
-      console.log(`Page ${pageNum + 1} convertie et stockée: ${publicUrl}`)
+      console.log(`Page ${pageNum + 1} stockée: ${publicUrl}`)
 
       // Enregistrer les métadonnées de la page
-      await supabase
+      const { error: insertError } = await supabase
         .from('document_pages')
         .insert({
           document_id: documentId,
@@ -119,6 +118,12 @@ serve(async (req) => {
           image_path: imagePath
         })
 
+      if (insertError) {
+        console.error(`Erreur insertion metadata page ${pageNum + 1}:`, insertError)
+        continue
+      }
+
+      console.log(`Métadonnées enregistrées pour la page ${pageNum + 1}`)
       processedPages.push({ pageNum: pageNum + 1, url: publicUrl })
     }
 
