@@ -228,14 +228,22 @@ const ManageUsers = () => {
         })
         .eq("email", newUser.email);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error("Erreur lors de la mise à jour du profil:", profileError);
+        throw profileError;
+      }
 
       if (newUser.role === "client" && newUser.liaison_id) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileFetchError } = await supabase
           .from("profiles")
           .select("id")
           .eq("email", newUser.email)
           .single();
+
+        if (profileFetchError) {
+          console.error("Erreur lors de la récupération du profil:", profileFetchError);
+          throw profileFetchError;
+        }
 
         if (profileData) {
           const { error: liaisonError } = await supabase
@@ -245,7 +253,10 @@ const ManageUsers = () => {
               liaison_id: newUser.liaison_id,
             });
 
-          if (liaisonError) throw liaisonError;
+          if (liaisonError) {
+            console.error("Erreur lors de la création de la liaison:", liaisonError);
+            throw liaisonError;
+          }
         }
       }
 
@@ -260,7 +271,7 @@ const ManageUsers = () => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
     } catch (error: any) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
-      toast.error("Erreur lors de la création de l'utilisateur");
+      toast.error("Erreur lors de la création de l'utilisateur : " + error.message);
     }
   };
 
