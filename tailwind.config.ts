@@ -26,59 +26,41 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#2DD4BF",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "#0FA0CE",
+          light: "#3DB5D9",
+          dark: "#0B7A9E",
+          foreground: "white",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "#221F26",
+          foreground: "white",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "#F1F1F1",
+          foreground: "#333333",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "#0FA0CE",
+          foreground: "white",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "white",
+          foreground: "#333333",
         },
       },
-      keyframes: {
-        "fade-up": {
-          "0%": {
-            opacity: "0",
-            transform: "translateY(10px)",
-          },
-          "100%": {
-            opacity: "1",
-            transform: "translateY(0)",
-          },
-        },
-        "fade-down": {
-          "0%": {
-            opacity: "0",
-            transform: "translateY(-10px)",
-          },
-          "100%": {
-            opacity: "1",
-            transform: "translateY(0)",
-          },
-        },
+      fontFamily: {
+        sans: ['Lato', 'sans-serif'],
       },
-      animation: {
-        "fade-up": "fade-up 0.5s ease-out",
-        "fade-down": "fade-down 0.5s ease-out",
+      backgroundImage: {
+        'hero-pattern': "url('/public/lovable-uploads/17265af6-eb9a-4354-8343-fbbf62ec0d76.png')",
       },
     },
   },

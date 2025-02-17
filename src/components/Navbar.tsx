@@ -1,7 +1,7 @@
 
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { FileText, Users, Database, Upload, Home, LogOut } from "lucide-react";
+import { FileText, Users, Database, Upload, LogOut } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -102,13 +102,16 @@ const Navbar = () => {
   };
 
   return (
-    <header className="w-full border-b bg-background">
+    <header className="w-full border-b bg-white shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2">
-              <Home className="w-5 h-5" />
-              <span className="font-bold">ASN DigiSAT</span>
+              <img
+                src="/lovable-uploads/9351f455-202e-460c-9a43-fa3394a83faf.png"
+                alt="ASN Logo"
+                className="h-8 w-auto"
+              />
             </Link>
             
             {session && (
@@ -117,7 +120,7 @@ const Navbar = () => {
                   <Link
                     key={item.title}
                     to={item.url}
-                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                    className="flex items-center gap-2 text-sm font-medium text-secondary hover:text-primary transition-colors"
                   >
                     <item.icon className="w-4 h-4" />
                     {item.title}
@@ -131,17 +134,22 @@ const Navbar = () => {
             {session ? (
               <>
                 <Avatar>
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-primary text-white">
                     {profile ? getInitials(profile) : "..."}
                   </AvatarFallback>
                 </Avatar>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="text-secondary hover:text-primary">
                   <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion
                 </Button>
               </>
             ) : (
-              <Button variant="default" size="sm" onClick={handleLogin}>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleLogin}
+                className="bg-primary hover:bg-primary-light text-white"
+              >
                 Se Connecter
               </Button>
             )}
