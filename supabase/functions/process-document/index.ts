@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { Canvas } from "https://deno.land/x/canvas/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,33 +35,41 @@ serve(async (req) => {
 
     console.log('PDF récupéré, conversion en cours...')
 
-    // Charger le PDF avec pdf-lib
+    // Charger le PDF
     const arrayBuffer = await pdfData.arrayBuffer()
     const pdfDoc = await PDFDocument.load(arrayBuffer)
     const totalPages = Math.min(pdfDoc.getPageCount(), 10) // Maximum 10 pages
 
     console.log(`Traitement de ${totalPages} pages`)
 
-    // Pour chaque page, convertir en PNG et sauvegarder
+    // Pour chaque page
     for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-      console.log(`Conversion de la page ${pageNum + 1}/${totalPages}`)
+      console.log(`Traitement de la page ${pageNum + 1}/${totalPages}`)
       
       const page = pdfDoc.getPages()[pageNum]
+      const { width, height } = page.getSize()
       
-      // Convertir la page en PNG
-      const imageFormat = 'png'
-      const jpgPage = await page.exportAsImage({
-        width: page.getWidth(),
-        height: page.getHeight(),
-      })
+      // Créer un nouveau document PDF avec une seule page
+      const singlePagePdf = await PDFDocument.create()
+      const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum])
+      singlePagePdf.addPage(copiedPage)
       
-      const imageBytes = await jpgPage.encode()
+      // Convertir en PNG en utilisant Canvas
+      const canvas = new Canvas(width, height)
+      const ctx = canvas.getContext('2d')
+      
+      // Dessiner la page PDF sur le canvas
+      const base64 = await singlePagePdf.saveAsBase64()
+      await ctx.drawImage(`data:application/pdf;base64,${base64}`, 0, 0, width, height)
+      
+      // Obtenir les données PNG
+      const pngData = canvas.toBuffer('image/png')
       const imagePath = `${documentId}/page-${pageNum + 1}.png`
 
       // Uploader l'image dans le bucket document_pages
       const { error: uploadError } = await supabase.storage
         .from('document_pages')
-        .upload(imagePath, imageBytes, {
+        .upload(imagePath, pngData, {
           contentType: 'image/png',
           upsert: true
         })
