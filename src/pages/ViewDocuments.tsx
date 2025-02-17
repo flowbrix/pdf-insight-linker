@@ -37,10 +37,7 @@ const ViewDocuments = () => {
     queryFn: async () => {
       let query = supabase
         .from("documents")
-        .select(`
-          *,
-          extracted_data (*)
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (profile?.role === "client") {
