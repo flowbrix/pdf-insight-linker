@@ -24,15 +24,14 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
 
-    if (!supabaseUrl || !supabaseServiceKey || !apiKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Variables d\'environnement manquantes');
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Récupérer le document et son operation_id
+    // Récupérer le document
     const { data: document, error: docError } = await supabaseClient
       .from('documents')
       .select('*')
@@ -43,88 +42,31 @@ serve(async (req) => {
       throw new Error('Document non trouvé');
     }
 
-    if (!document.operation_id) {
-      throw new Error('Operation ID manquant');
-    }
+    // Comme nous utilisons maintenant l'API synchrone, nous pouvons considérer 
+    // que le traitement est terminé dès que le document a un statut
+    if (document.status === 'processing') {
+      await supabaseClient
+        .from('documents')
+        .update({
+          status: 'completed',
+          ocr_status: 'completed',
+          ocr_completed_at: new Date().toISOString(),
+        })
+        .eq('id', documentId);
 
-    // Vérifier le statut de l'opération avec Google Cloud Vision
-    const response = await fetch(
-      `https://vision.googleapis.com/v1/${document.operation_id}?key=${apiKey}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Erreur lors de la vérification du statut: ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log('Statut de l\'opération:', result);
-
-    if (!result.done) {
-      // L'opération est toujours en cours
       return new Response(
-        JSON.stringify({ status: 'processing' }),
+        JSON.stringify({ 
+          status: 'completed',
+          message: 'Document traité avec succès'
+        }),
         { headers: corsHeaders }
       );
     }
 
-    if (result.error) {
-      // Il y a eu une erreur pendant le traitement
-      await supabaseClient
-        .from('documents')
-        .update({
-          status: 'error',
-          ocr_status: 'error',
-          ocr_error: result.error.message
-        })
-        .eq('id', documentId);
-
-      throw new Error(result.error.message);
-    }
-
-    // Extraire le texte du résultat
-    const responses = result.response.responses;
-    let extractedText = '';
-    
-    if (responses && responses.length > 0) {
-      for (const response of responses) {
-        if (response.fullTextAnnotation) {
-          extractedText += response.fullTextAnnotation.text + '\n\n';
-        }
-      }
-    }
-
-    if (!extractedText.trim()) {
-      throw new Error('Aucun texte n\'a pu être extrait du document');
-    }
-
-    // Mettre à jour le document avec le texte extrait
-    const now = new Date().toISOString();
-    const { error: updateError } = await supabaseClient
-      .from('documents')
-      .update({
-        status: 'completed',
-        ocr_status: 'completed',
-        ocr_completed_at: now,
-        extracted_text: extractedText,
-        processed: true,
-        processed_at: now
-      })
-      .eq('id', documentId);
-
-    if (updateError) {
-      throw updateError;
-    }
-
     return new Response(
       JSON.stringify({
-        status: 'completed',
-        message: 'Document traité avec succès'
+        status: document.status,
+        message: document.status === 'error' ? document.ocr_error : 'En cours de traitement'
       }),
       { headers: corsHeaders }
     );
