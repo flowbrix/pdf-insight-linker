@@ -108,10 +108,11 @@ const Navbar = () => {
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2">
               <img
-                src="/lovable-uploads/9351f455-202e-460c-9a43-fa3394a83faf.png"
+                src="/lovable-uploads/0061bc3f-2132-4524-b06a-3e2293859c4c.png"
                 alt="ASN Logo"
-                className="h-8 w-auto"
+                className="h-8 w-8"
               />
+              <span className="text-lg font-semibold text-secondary">DigiSAT</span>
             </Link>
             
             {session && (
