@@ -4,19 +4,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Request-Headers': '*',
   'Content-Type': 'application/json'
 }
 
-async function analyzeDocumentWithVision(fileBytes: Uint8Array): Promise<any> {
+async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> {
   const apiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
   if (!apiKey) {
     throw new Error('Clé API Google Cloud Vision non configurée');
   }
 
-  const base64Content = btoa(String.fromCharCode(...fileBytes));
+  // Convertir ArrayBuffer en Base64 de manière sécurisée
+  const uint8Array = new Uint8Array(fileBuffer);
+  const chunks: string[] = [];
+  uint8Array.forEach((byte) => {
+    chunks.push(String.fromCharCode(byte));
+  });
+  const base64Content = btoa(chunks.join(''));
   
   const requestBody = {
     requests: [{
@@ -30,6 +36,8 @@ async function analyzeDocumentWithVision(fileBytes: Uint8Array): Promise<any> {
     }]
   };
 
+  console.log('Envoi de la requête à Google Cloud Vision...');
+  
   const response = await fetch(
     `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
     {
@@ -42,7 +50,9 @@ async function analyzeDocumentWithVision(fileBytes: Uint8Array): Promise<any> {
   );
 
   if (!response.ok) {
-    throw new Error(`Erreur Google Cloud Vision: ${await response.text()}`);
+    const errorText = await response.text();
+    console.error('Erreur Google Cloud Vision:', errorText);
+    throw new Error(`Erreur Google Cloud Vision: ${errorText}`);
   }
 
   return await response.json();
@@ -109,10 +119,12 @@ serve(async (req) => {
       })
       .eq('id', documentId);
 
+    // Conversion du Blob en ArrayBuffer
+    const arrayBuffer = await fileData.arrayBuffer();
+
     // Analyse avec Google Cloud Vision
     console.log('Envoi à Google Cloud Vision');
-    const fileBytes = new Uint8Array(await fileData.arrayBuffer());
-    const visionResult = await analyzeDocumentWithVision(fileBytes);
+    const visionResult = await analyzeDocumentWithVision(arrayBuffer);
 
     // Mise à jour des résultats
     const now = new Date().toISOString();
@@ -122,7 +134,7 @@ serve(async (req) => {
         status: 'completed',
         ocr_status: 'completed',
         ocr_completed_at: now,
-        extracted_text: visionResult,
+        extracted_text: visionResult.responses[0].fullTextAnnotation?.text || '',
         processed: true,
         processed_at: now
       })
