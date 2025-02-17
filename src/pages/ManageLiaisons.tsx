@@ -21,8 +21,6 @@ import { toast } from "sonner";
 type Liaison = {
   id: string;
   name: string;
-  reference_code: string;
-  description: string | null;
   active: boolean;
   created_at: string;
 };
@@ -31,8 +29,6 @@ const ManageLiaisons = () => {
   const queryClient = useQueryClient();
   const [newLiaison, setNewLiaison] = useState({
     name: "",
-    reference_code: "",
-    description: "",
   });
 
   // Charger les liaisons
@@ -53,8 +49,8 @@ const ManageLiaisons = () => {
   const handleCreateLiaison = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newLiaison.name || !newLiaison.reference_code) {
-      toast.error("Le nom et le code de référence sont requis");
+    if (!newLiaison.name) {
+      toast.error("Le nom de la liaison est requis");
       return;
     }
 
@@ -63,14 +59,12 @@ const ManageLiaisons = () => {
         .from("liaisons")
         .insert({
           name: newLiaison.name,
-          reference_code: newLiaison.reference_code,
-          description: newLiaison.description || null,
         });
 
       if (error) throw error;
 
       toast.success("Liaison créée avec succès");
-      setNewLiaison({ name: "", reference_code: "", description: "" });
+      setNewLiaison({ name: "" });
       queryClient.invalidateQueries({ queryKey: ["liaisons"] });
     } catch (error) {
       console.error("Erreur lors de la création:", error);
@@ -120,40 +114,14 @@ const ManageLiaisons = () => {
           <Plus className="w-5 h-5" />
           Nouvelle Liaison
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nom</Label>
-            <Input
-              id="name"
-              value={newLiaison.name}
-              onChange={(e) =>
-                setNewLiaison({ ...newLiaison, name: e.target.value })
-              }
-              placeholder="Nom de la liaison"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reference_code">Code de référence</Label>
-            <Input
-              id="reference_code"
-              value={newLiaison.reference_code}
-              onChange={(e) =>
-                setNewLiaison({ ...newLiaison, reference_code: e.target.value })
-              }
-              placeholder="Code unique"
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              value={newLiaison.description}
-              onChange={(e) =>
-                setNewLiaison({ ...newLiaison, description: e.target.value })
-              }
-              placeholder="Description (optionnelle)"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="name">Nom</Label>
+          <Input
+            id="name"
+            value={newLiaison.name}
+            onChange={(e) => setNewLiaison({ name: e.target.value })}
+            placeholder="Nom de la liaison"
+          />
         </div>
         <Button type="submit" className="mt-4">
           Créer la liaison
@@ -166,8 +134,6 @@ const ManageLiaisons = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Nom</TableHead>
-              <TableHead>Code de référence</TableHead>
-              <TableHead>Description</TableHead>
               <TableHead>État</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -176,8 +142,6 @@ const ManageLiaisons = () => {
             {liaisons?.map((liaison) => (
               <TableRow key={liaison.id}>
                 <TableCell className="font-medium">{liaison.name}</TableCell>
-                <TableCell>{liaison.reference_code}</TableCell>
-                <TableCell>{liaison.description || "-"}</TableCell>
                 <TableCell>
                   <Badge
                     variant={liaison.active ? "success" : "destructive"}
@@ -204,3 +168,4 @@ const ManageLiaisons = () => {
 };
 
 export default ManageLiaisons;
+

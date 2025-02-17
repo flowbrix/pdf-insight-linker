@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -183,7 +182,7 @@ const ProcessDocumentForm = () => {
               <SelectValue placeholder="Sélectionnez une liaison" />
             </SelectTrigger>
             <SelectContent>
-              {liaisons?.map((liaison) => (
+              {liaisons?.filter(liaison => liaison.active).map((liaison) => (
                 <SelectItem key={liaison.id} value={liaison.id}>
                   {liaison.name}
                 </SelectItem>

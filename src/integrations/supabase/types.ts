@@ -308,28 +308,22 @@ export type Database = {
           active: boolean | null
           created_at: string | null
           created_by: string | null
-          description: string | null
           id: string
           name: string
-          reference_code: string
         }
         Insert: {
           active?: boolean | null
           created_at?: string | null
           created_by?: string | null
-          description?: string | null
           id?: string
           name: string
-          reference_code: string
         }
         Update: {
           active?: boolean | null
           created_at?: string | null
           created_by?: string | null
-          description?: string | null
           id?: string
           name?: string
-          reference_code?: string
         }
         Relationships: [
           {
