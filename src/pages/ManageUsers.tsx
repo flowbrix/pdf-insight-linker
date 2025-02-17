@@ -53,7 +53,6 @@ type ClientLiaison = {
 
 type NewUser = {
   email: string;
-  password: string;
   first_name: string;
   last_name: string;
   role: "admin" | "operator" | "client";
@@ -68,13 +67,11 @@ const ManageUsers = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
-    password: "",
     first_name: "",
     last_name: "",
     role: "client",
   });
 
-  // Charger les profils
   const { data: profiles, isLoading: isLoadingProfiles } = useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
@@ -88,7 +85,6 @@ const ManageUsers = () => {
     },
   });
 
-  // Charger les liaisons
   const { data: liaisons, isLoading: isLoadingLiaisons } = useQuery({
     queryKey: ["liaisons"],
     queryFn: async () => {
@@ -102,7 +98,6 @@ const ManageUsers = () => {
     },
   });
 
-  // Charger les liaisons assignées
   const { data: clientLiaisons, isLoading: isLoadingClientLiaisons } = useQuery({
     queryKey: ["client_liaisons", selectedUser?.id],
     queryFn: async () => {
@@ -204,25 +199,22 @@ const ManageUsers = () => {
 
   const createUser = async () => {
     try {
-      if (!newUser.email || !newUser.password || !newUser.first_name || !newUser.last_name) {
+      if (!newUser.email || !newUser.first_name || !newUser.last_name) {
         toast.error("Veuillez remplir tous les champs obligatoires");
         return;
       }
 
-      // Créer l'utilisateur dans Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      const { data: authData, error: authError } = await supabase.auth.admin.inviteUserByEmail({
         email: newUser.email,
-        password: newUser.password,
-        email_confirm: true,
-        user_metadata: {
+        data: {
           first_name: newUser.first_name,
           last_name: newUser.last_name,
+          role: newUser.role,
         },
       });
 
       if (authError) throw authError;
 
-      // Mettre à jour le rôle dans la table profiles
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ role: newUser.role })
@@ -230,7 +222,6 @@ const ManageUsers = () => {
 
       if (profileError) throw profileError;
 
-      // Si c'est un client et qu'une liaison est sélectionnée, créer l'association
       if (newUser.role === "client" && newUser.liaison_id) {
         const { error: liaisonError } = await supabase
           .from("client_liaisons")
@@ -242,11 +233,10 @@ const ManageUsers = () => {
         if (liaisonError) throw liaisonError;
       }
 
-      toast.success("Utilisateur créé avec succès");
+      toast.success("Utilisateur créé avec succès. Un email d'invitation a été envoyé.");
       setIsCreateDialogOpen(false);
       setNewUser({
         email: "",
-        password: "",
         first_name: "",
         last_name: "",
         role: "client",
@@ -461,15 +451,6 @@ const ManageUsers = () => {
                 type="email"
                 value={newUser.email}
                 onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
               />
             </div>
             <div className="grid gap-2">

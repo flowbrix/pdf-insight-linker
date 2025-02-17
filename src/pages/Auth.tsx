@@ -12,60 +12,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-
-  // États pour la connexion
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  // États pour l'inscription
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isResetMode, setIsResetMode] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
-      });
-
-      if (error) throw error;
-
-      toast.success("Connexion réussie");
-      navigate("/");
-    } catch (error: any) {
-      toast.error(error.message || "Erreur lors de la connexion");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: registerEmail,
-        password: registerPassword,
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
         options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-          },
+          emailRedirectTo: `${window.location.origin}/`,
         },
       });
 
       if (error) throw error;
 
-      toast.success("Inscription réussie ! Vérifiez votre email pour confirmer votre compte.");
-      navigate("/");
+      toast.success("Un email de connexion vous a été envoyé");
     } catch (error: any) {
-      toast.error(error.message || "Erreur lors de l'inscription");
+      toast.error(error.message || "Erreur lors de l'envoi de l'email");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) throw error;
+
+      toast.success("Un email de réinitialisation vous a été envoyé");
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors de l'envoi de l'email de réinitialisation");
     } finally {
       setIsLoading(false);
     }
@@ -75,92 +60,43 @@ const Auth = () => {
     <div className="container mx-auto flex items-center justify-center min-h-screen">
       <Card className="w-[400px]">
         <CardHeader>
-          <CardTitle>Authentification</CardTitle>
+          <CardTitle>{isResetMode ? "Réinitialiser le mot de passe" : "Connexion"}</CardTitle>
           <CardDescription>
-            Connectez-vous ou créez un compte pour accéder à l'application
+            {isResetMode 
+              ? "Entrez votre email pour recevoir un lien de réinitialisation"
+              : "Connectez-vous avec votre email"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Connexion</TabsTrigger>
-              <TabsTrigger value="register">Inscription</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Mot de passe</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Connexion en cours..." : "Se connecter"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
-                  <Input
-                    id="register-email"
-                    type="email"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">Mot de passe</Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first-name">Prénom</Label>
-                    <Input
-                      id="first-name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last-name">Nom</Label>
-                    <Input
-                      id="last-name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Inscription en cours..." : "S'inscrire"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={isResetMode ? handleResetPassword : handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading 
+                ? "Envoi en cours..." 
+                : isResetMode 
+                  ? "Réinitialiser le mot de passe"
+                  : "Recevoir le lien de connexion"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full mt-2"
+              onClick={() => setIsResetMode(!isResetMode)}
+            >
+              {isResetMode 
+                ? "Retour à la connexion"
+                : "Mot de passe oublié ?"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
