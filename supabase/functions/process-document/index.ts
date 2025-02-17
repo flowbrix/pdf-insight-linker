@@ -63,6 +63,8 @@ async function analyzeDocumentWithVision(fileBuffer: ArrayBuffer): Promise<any> 
 }
 
 serve(async (req) => {
+  let documentId: string | undefined;
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: corsHeaders
@@ -72,7 +74,7 @@ serve(async (req) => {
   try {
     console.log('Début du traitement de la requête');
     const body = await req.json();
-    const { documentId } = body;
+    documentId = body.documentId;
 
     if (!documentId) {
       console.error('Document ID manquant');
@@ -180,28 +182,30 @@ serve(async (req) => {
     console.error('Erreur lors du traitement:', error);
     
     // Tenter de mettre à jour le statut en cas d'erreur
-    try {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
+    if (documentId) {
+      try {
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
 
-      await supabaseClient
-        .from('documents')
-        .update({ 
-          status: 'error',
-          ocr_status: 'error',
-          ocr_error: error.message
-        })
-        .eq('id', body?.documentId);
-    } catch (updateError) {
-      console.error('Erreur lors de la mise à jour du statut d\'erreur:', updateError);
+        await supabaseClient
+          .from('documents')
+          .update({ 
+            status: 'error',
+            ocr_status: 'error',
+            ocr_error: error instanceof Error ? error.message : 'Erreur inconnue'
+          })
+          .eq('id', documentId);
+      } catch (updateError) {
+        console.error('Erreur lors de la mise à jour du statut d\'erreur:', updateError);
+      }
     }
 
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        details: error.stack
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
+        details: error instanceof Error ? error.stack : undefined
       }),
       { headers: corsHeaders, status: 500 }
     );
