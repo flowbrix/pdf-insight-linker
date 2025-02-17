@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
+import { encode as encodeBase64 } from "https://deno.land/std@0.182.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +20,7 @@ async function processDocumentWithVision(fileData: ArrayBuffer): Promise<any> {
     }
 
     console.log('Construction de la requête Vision API...');
-    const base64Content = btoa(String.fromCharCode(...new Uint8Array(fileData)));
+    const base64Content = encodeBase64(new Uint8Array(fileData));
     
     const requestBody = {
       requests: [{
