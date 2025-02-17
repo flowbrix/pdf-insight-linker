@@ -204,36 +204,52 @@ const ManageUsers = () => {
         return;
       }
 
-      const { data: authData, error: authError } = await supabase.auth.admin.inviteUserByEmail({
+      const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
         email: newUser.email,
-        data: {
-          first_name: newUser.first_name,
-          last_name: newUser.last_name,
-          role: newUser.role,
+        options: {
+          data: {
+            first_name: newUser.first_name,
+            last_name: newUser.last_name,
+            role: newUser.role,
+          },
         },
       });
 
       if (authError) throw authError;
 
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ role: newUser.role })
-        .eq("id", authData.user.id);
+        .update({ 
+          role: newUser.role,
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+        })
+        .eq("email", newUser.email);
 
       if (profileError) throw profileError;
 
       if (newUser.role === "client" && newUser.liaison_id) {
-        const { error: liaisonError } = await supabase
-          .from("client_liaisons")
-          .insert({
-            client_id: authData.user.id,
-            liaison_id: newUser.liaison_id,
-          });
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", newUser.email)
+          .single();
 
-        if (liaisonError) throw liaisonError;
+        if (profileData) {
+          const { error: liaisonError } = await supabase
+            .from("client_liaisons")
+            .insert({
+              client_id: profileData.id,
+              liaison_id: newUser.liaison_id,
+            });
+
+          if (liaisonError) throw liaisonError;
+        }
       }
 
-      toast.success("Utilisateur créé avec succès. Un email d'invitation a été envoyé.");
+      toast.success("Un email d'invitation a été envoyé à l'utilisateur");
       setIsCreateDialogOpen(false);
       setNewUser({
         email: "",
@@ -242,7 +258,7 @@ const ManageUsers = () => {
         role: "client",
       });
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
       toast.error("Erreur lors de la création de l'utilisateur");
     }
