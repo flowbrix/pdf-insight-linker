@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import * as pdf from "https://deno.land/x/pdfjs@v0.1.0/mod.ts"
+import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@1.17.1?dts"
 import { createCanvas } from "https://deno.land/x/canvas@v1.4.1/mod.ts"
 
 const corsHeaders = {
@@ -9,26 +9,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function convertPageToImage(pdfDoc: any, pageNum: number): Promise<Uint8Array | null> {
+async function convertPageToImage(pdfDoc: PDFDocument, pageIndex: number): Promise<Uint8Array | null> {
   try {
-    const page = await pdfDoc.getPage(pageNum)
-    const viewport = page.getViewport({ scale: 1.5 }) // Scale 1.5 pour une meilleure qualité
-    
-    const canvas = createCanvas(viewport.width, viewport.height)
-    const context = canvas.getContext('2d')
-    
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
+    const pages = pdfDoc.getPages()
+    if (pageIndex >= pages.length) {
+      console.error(`Page ${pageIndex + 1} n'existe pas dans le document`)
+      return null
     }
+
+    const page = pages[pageIndex]
+    const { width, height } = page.getSize()
     
-    await page.render(renderContext).promise
+    // Créer un canvas avec les dimensions de la page
+    const scale = 1.5 // Pour une meilleure qualité
+    const canvas = createCanvas(width * scale, height * scale)
+    const ctx = canvas.getContext('2d')
     
-    // Convertir le canvas en PNG
+    // Définir un fond blanc
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, width * scale, height * scale)
+    
+    // Convertir en PNG
     const imageData = await canvas.toBuffer('image/png')
     return new Uint8Array(imageData)
   } catch (error) {
-    console.error(`Erreur conversion page ${pageNum}:`, error)
+    console.error(`Erreur conversion page ${pageIndex + 1}:`, error)
     return null
   }
 }
@@ -65,25 +70,25 @@ serve(async (req) => {
     console.log('Document PDF récupéré, début de la conversion...')
 
     // Charger le PDF
-    const pdfData = await pdfFile.arrayBuffer()
-    const pdfDoc = await pdf.getDocument({ data: pdfData }).promise
-    const totalPages = Math.min(pdfDoc.numPages, 10) // Maximum 10 pages
+    const pdfBytes = await pdfFile.arrayBuffer()
+    const pdfDoc = await PDFDocument.load(pdfBytes)
+    const totalPages = Math.min(pdfDoc.getPageCount(), 10) // Maximum 10 pages
     
     console.log(`Nombre total de pages à traiter: ${totalPages}`)
     
     const processedPages = []
 
     // Traiter chaque page
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      console.log(`Traitement de la page ${pageNum}...`)
+    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+      console.log(`Traitement de la page ${pageNum + 1}...`)
       
       const imageData = await convertPageToImage(pdfDoc, pageNum)
       if (!imageData) {
-        console.error(`Échec de la conversion de la page ${pageNum}`)
+        console.error(`Échec de la conversion de la page ${pageNum + 1}`)
         continue
       }
 
-      const imagePath = `${documentId}/page-${pageNum}.png`
+      const imagePath = `${documentId}/page-${pageNum + 1}.png`
       
       // Upload de l'image convertie
       const { error: uploadError } = await supabase.storage
@@ -94,7 +99,7 @@ serve(async (req) => {
         })
 
       if (uploadError) {
-        console.error(`Erreur upload page ${pageNum}:`, uploadError)
+        console.error(`Erreur upload page ${pageNum + 1}:`, uploadError)
         continue
       }
 
@@ -103,18 +108,18 @@ serve(async (req) => {
         .from('document_pages')
         .getPublicUrl(imagePath)
 
-      console.log(`Page ${pageNum} convertie et stockée: ${publicUrl}`)
+      console.log(`Page ${pageNum + 1} convertie et stockée: ${publicUrl}`)
 
       // Enregistrer les métadonnées de la page
       await supabase
         .from('document_pages')
         .insert({
           document_id: documentId,
-          page_number: pageNum,
+          page_number: pageNum + 1,
           image_path: imagePath
         })
 
-      processedPages.push({ pageNum, url: publicUrl })
+      processedPages.push({ pageNum: pageNum + 1, url: publicUrl })
     }
 
     // Mise à jour finale du document
