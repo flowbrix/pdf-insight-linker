@@ -39,15 +39,28 @@ async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): 
         console.log(`Tentative ${attempt + 1} d'extraction de texte...`);
         const base64Content = encodeBase64(fileData);
         
+        // Configuration plus détaillée pour l'API Vision
         const requestBody = {
           requests: [{
             image: {
               content: base64Content
             },
-            features: [{
-              type: 'DOCUMENT_TEXT_DETECTION',
-              maxResults: 1
-            }]
+            features: [
+              {
+                type: 'DOCUMENT_TEXT_DETECTION',
+                maxResults: 1
+              },
+              {
+                type: 'TEXT_DETECTION',
+                maxResults: 1
+              }
+            ],
+            imageContext: {
+              languageHints: ['fr', 'en'],
+              textDetectionParams: {
+                enableTextDetectionConfidenceScore: true
+              }
+            }
           }]
         };
 
@@ -63,23 +76,32 @@ async function processDocumentWithVision(fileData: Uint8Array, maxRetries = 3): 
         );
 
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Réponse Vision API:', errorText);
           throw new Error(`Erreur HTTP: ${response.status}`);
         }
 
         const result = await response.json();
-        const extractedText = result.responses?.[0]?.fullTextAnnotation?.text;
+        console.log('Réponse Vision API reçue:', JSON.stringify(result, null, 2));
+
+        // Essayer d'abord DOCUMENT_TEXT_DETECTION puis TEXT_DETECTION
+        let extractedText = result.responses?.[0]?.fullTextAnnotation?.text;
+        
+        if (!extractedText && result.responses?.[0]?.textAnnotations?.[0]?.description) {
+          extractedText = result.responses[0].textAnnotations[0].description;
+        }
 
         if (!extractedText) {
           throw new Error('Aucun texte extrait dans la réponse');
         }
 
-        console.log('Texte extrait avec succès');
+        console.log(`Texte extrait (${extractedText.length} caractères)`);
         return extractedText;
       } catch (error) {
         console.error(`Erreur tentative ${attempt + 1}:`, error);
         if (attempt === maxRetries - 1) throw error;
         attempt++;
-        await delay(2000); // Attendre 2 secondes avant de réessayer
+        await delay(5000); // Attendre 5 secondes avant de réessayer
       }
     }
     throw new Error('Échec de toutes les tentatives d\'extraction');
@@ -143,7 +165,7 @@ serve(async (req) => {
 
     const extractedTextByPage: { [key: string]: string } = {};
 
-    // Traitement page par page avec attente de l'extraction
+    // Traitement page par page
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       try {
         console.log(`\nTraitement de la page ${pageIndex + 1}/${totalPages}`);
@@ -170,9 +192,9 @@ serve(async (req) => {
           throw new Error(`Erreur lors de la mise à jour pour la page ${pageIndex + 1}`);
         }
 
-        // Pause entre les pages
+        // Pause plus longue entre les pages
         if (pageIndex < totalPages - 1) {
-          await delay(2000);
+          await delay(5000); // 5 secondes entre chaque page
         }
       } catch (pageError) {
         console.error(`Erreur sur la page ${pageIndex + 1}:`, pageError);
