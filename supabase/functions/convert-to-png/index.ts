@@ -12,8 +12,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  let payload;
   try {
-    const { pageId, documentId, pdfPath } = await req.json()
+    // Parsing du JSON une seule fois au début
+    payload = await req.json()
+    const { pageId, documentId, pdfPath } = payload
     
     console.log(`Début de la conversion en PNG pour la page ${pageId} du document ${documentId}`)
 
@@ -115,9 +118,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erreur:', error)
     
-    // En cas d'erreur, mettre à jour le statut
-    const { pageId } = await req.json()
-    if (pageId) {
+    // Utilisation du payload déjà parsé pour la mise à jour du statut
+    if (payload?.pageId) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -128,7 +130,7 @@ serve(async (req) => {
         .update({ 
           png_conversion_status: 'error'
         })
-        .eq('id', pageId)
+        .eq('id', payload.pageId)
     }
 
     return new Response(
