@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Edit, X } from "lucide-react";
+import { Edit, Plus, X } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -52,11 +51,28 @@ type ClientLiaison = {
   liaison_id: string;
 };
 
+type NewUser = {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: "admin" | "operator" | "client";
+  liaison_id?: string;
+};
+
 const ManageUsers = () => {
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [editedUser, setEditedUser] = useState<Partial<Profile>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newUser, setNewUser] = useState<NewUser>({
+    email: "",
+    password: "",
+    first_name: "",
+    last_name: "",
+    role: "client",
+  });
 
   // Charger les profils
   const { data: profiles, isLoading: isLoadingProfiles } = useQuery({
@@ -186,6 +202,62 @@ const ManageUsers = () => {
     queryClient.invalidateQueries({ queryKey: ["client_liaisons"] });
   };
 
+  const createUser = async () => {
+    try {
+      if (!newUser.email || !newUser.password || !newUser.first_name || !newUser.last_name) {
+        toast.error("Veuillez remplir tous les champs obligatoires");
+        return;
+      }
+
+      // Créer l'utilisateur dans Auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: newUser.email,
+        password: newUser.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+        },
+      });
+
+      if (authError) throw authError;
+
+      // Mettre à jour le rôle dans la table profiles
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ role: newUser.role })
+        .eq("id", authData.user.id);
+
+      if (profileError) throw profileError;
+
+      // Si c'est un client et qu'une liaison est sélectionnée, créer l'association
+      if (newUser.role === "client" && newUser.liaison_id) {
+        const { error: liaisonError } = await supabase
+          .from("client_liaisons")
+          .insert({
+            client_id: authData.user.id,
+            liaison_id: newUser.liaison_id,
+          });
+
+        if (liaisonError) throw liaisonError;
+      }
+
+      toast.success("Utilisateur créé avec succès");
+      setIsCreateDialogOpen(false);
+      setNewUser({
+        email: "",
+        password: "",
+        first_name: "",
+        last_name: "",
+        role: "client",
+      });
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+    } catch (error) {
+      console.error("Erreur lors de la création de l'utilisateur:", error);
+      toast.error("Erreur lors de la création de l'utilisateur");
+    }
+  };
+
   if (isLoadingProfiles || isLoadingLiaisons) {
     return (
       <div className="container mx-auto p-6">
@@ -197,7 +269,13 @@ const ManageUsers = () => {
 
   return (
     <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Gérer les Utilisateurs</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Gérer les Utilisateurs</h1>
+        <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nouvel utilisateur
+        </Button>
+      </div>
       
       <div className="rounded-md border">
         <Table>
@@ -369,9 +447,100 @@ const ManageUsers = () => {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="firstName">Prénom</Label>
+              <Input
+                id="firstName"
+                value={newUser.first_name}
+                onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="lastName">Nom</Label>
+              <Input
+                id="lastName"
+                value={newUser.last_name}
+                onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="role">Rôle</Label>
+              <Select
+                value={newUser.role}
+                onValueChange={(value: "admin" | "operator" | "client") =>
+                  setNewUser({ ...newUser, role: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un rôle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrateur</SelectItem>
+                  <SelectItem value="operator">Opérateur</SelectItem>
+                  <SelectItem value="client">Client</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newUser.role === "client" && (
+              <div className="grid gap-2">
+                <Label htmlFor="liaison">Liaison</Label>
+                <Select
+                  value={newUser.liaison_id}
+                  onValueChange={(value) =>
+                    setNewUser({ ...newUser, liaison_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une liaison" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {liaisons?.filter(l => l.active).map((liaison) => (
+                      <SelectItem key={liaison.id} value={liaison.id}>
+                        {liaison.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-4">
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={createUser}>
+              Créer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default ManageUsers;
-
