@@ -106,6 +106,29 @@ export const processDocument = async ({
       throw new Error(`Erreur lors de l'envoi au webhook: ${response.statusText}`);
     }
 
+    // 5. Traiter la réponse du webhook Make.com
+    const webhookResponse = await response.json();
+    console.log('Réponse du webhook:', webhookResponse);
+
+    if (webhookResponse.extractedData) {
+      // Mettre à jour le document avec les données extraites si elles sont présentes dans la réponse
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({
+          extracted_text: webhookResponse.extractedData,
+          status: 'completed',
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', document.id);
+
+      if (updateError) {
+        console.error('Erreur lors de la mise à jour des données extraites:', updateError);
+        toast.error("Erreur lors de la mise à jour des données extraites");
+      } else {
+        console.log('Données extraites mises à jour avec succès');
+      }
+    }
+
     console.log('Document envoyé avec succès au webhook');
     toast.success("Document envoyé avec succès");
     onProcessingProgress(100);
