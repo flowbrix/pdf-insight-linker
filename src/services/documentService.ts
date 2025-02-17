@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentSector, DocumentType } from "@/components/documents/ProcessDocumentForm";
+import { toast } from "sonner";
 
 interface ProcessDocumentParams {
   file: File;
@@ -31,21 +32,35 @@ export const processDocument = async ({
     onUploadProgress(10);
 
     // Vérifier que le bucket existe avant l'upload
-    const { data: buckets } = await supabase.storage.listBuckets();
+    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+    
+    if (bucketsError) {
+      console.error('Erreur lors de la vérification des buckets:', bucketsError);
+      toast.error("Erreur lors de l'accès au stockage");
+      throw bucketsError;
+    }
+
     const documentsBucket = buckets?.find(b => b.name === 'documents');
     
     if (!documentsBucket) {
-      throw new Error("Le bucket 'documents' n'existe pas");
+      const error = new Error("Le bucket 'documents' n'existe pas");
+      console.error(error);
+      toast.error("Configuration du stockage incorrecte");
+      throw error;
     }
 
     console.log('Bucket documents trouvé, démarrage upload...');
 
     const { error: uploadError } = await supabase.storage
       .from('documents')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
     if (uploadError) {
       console.error('Erreur upload:', uploadError);
+      toast.error("Erreur lors de l'upload du document");
       throw uploadError;
     }
 
@@ -70,6 +85,7 @@ export const processDocument = async ({
 
     if (documentError) {
       console.error('Erreur création document:', documentError);
+      toast.error("Erreur lors de l'enregistrement des métadonnées");
       throw documentError;
     }
 
@@ -80,20 +96,35 @@ export const processDocument = async ({
 
     // 3. Appeler l'Edge Function pour traiter le document
     const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
-      body: { documentId: document.id },
+      body: { 
+        documentId: document.id,
+        filePath: filePath
+      },
     });
 
     if (processError) {
       console.error('Erreur traitement:', processError);
+      toast.error("Erreur lors du traitement du document");
       throw processError;
     }
 
+    if (!processData) {
+      const error = new Error("Aucune donnée reçue du traitement");
+      console.error(error);
+      toast.error("Le traitement du document n'a pas produit de résultat");
+      throw error;
+    }
+
     console.log('Résultat du traitement:', processData);
+    toast.success("Document traité avec succès");
     onProcessingProgress(100);
     
     return document;
   } catch (error) {
     console.error('Error in processDocument:', error);
+    if (!toast.message) {
+      toast.error("Une erreur inattendue s'est produite");
+    }
     throw error;
   }
 };
