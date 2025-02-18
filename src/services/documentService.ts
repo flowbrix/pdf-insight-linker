@@ -142,8 +142,20 @@ export const processDocument = async ({
     }
 
     // 5. Traiter la réponse du webhook Make.com
-    const webhookResponse = await response.json();
-    console.log('Réponse du webhook avec données extraites:', webhookResponse);
+    const responseText = await response.text();
+    console.log('Réponse brute du webhook:', responseText);
+    
+    let webhookResponse;
+    try {
+      // Tenter de parser la réponse en retirant les caractères markdown si présents
+      const cleanJson = responseText.replace(/```json\n|\n```/g, '');
+      webhookResponse = JSON.parse(cleanJson);
+      console.log('Réponse du webhook parsée:', webhookResponse);
+    } catch (parseError) {
+      console.error('Erreur parsing webhook response:', parseError);
+      toast.error("Erreur lors du parsing de la réponse du webhook");
+      throw parseError;
+    }
 
     if (webhookResponse.extracted_values) {
       const mappedData = mapExtractedValues(webhookResponse.extracted_values);

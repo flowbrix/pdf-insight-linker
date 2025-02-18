@@ -10,11 +10,13 @@ import { toast } from "sonner";
 import FileDropzone from "@/components/FileDropzone";
 import ProgressIndicators from "./ProgressIndicators";
 import { processDocument } from "@/services/documentService";
+import { useNavigate } from 'react-router-dom';
 
 export type DocumentSector = "SAT" | "Embarquement" | "Cable";
 export type DocumentType = "Qualité" | "Mesures" | "Production";
 
 const ProcessDocumentForm = () => {
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedAtelier, setSelectedAtelier] = useState<string>("");
   const [selectedLiaison, setSelectedLiaison] = useState<string>("");
@@ -84,7 +86,7 @@ const ProcessDocumentForm = () => {
     setProcessingProgress(0);
 
     try {
-      await processDocument({
+      const document = await processDocument({
         file: selectedFile,
         sector: selectedSector,
         type: selectedType,
@@ -93,6 +95,9 @@ const ProcessDocumentForm = () => {
         makeVisible,
         onUploadProgress: setUploadProgress,
         onProcessingProgress: setProcessingProgress,
+        onSuccess: (documentId) => {
+          navigate(`/documents/${documentId}`);
+        },
       });
 
       setSelectedFile(null);
@@ -103,8 +108,6 @@ const ProcessDocumentForm = () => {
         setUploadProgress(0);
         setProcessingProgress(0);
       }, 2000);
-
-      toast.success("Document uploadé avec succès et traitement lancé");
     } catch (error) {
       console.error('Erreur:', error);
       toast.error("Erreur lors du traitement du document");
