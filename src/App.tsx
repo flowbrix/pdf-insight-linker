@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ViewDocuments from './pages/ViewDocuments';
 import ProcessDocuments from './pages/ProcessDocuments';
 import ViewDocument from './pages/ViewDocument';
+import ManageUsers from './pages/ManageUsers';
+import ManageLiaisons from './pages/ManageLiaisons';
 import Layout from './components/Layout';
 
 // Création d'une instance de QueryClient
@@ -26,6 +28,8 @@ const App = () => {
             <Route path="/" element={<ViewDocuments />} />
             <Route path="/process" element={<ProcessDocuments />} />
             <Route path="/documents/:id" element={<ViewDocument />} />
+            <Route path="/users" element={<ManageUsers />} />
+            <Route path="/liaisons" element={<ManageLiaisons />} />
           </Routes>
         </Layout>
       </BrowserRouter>
