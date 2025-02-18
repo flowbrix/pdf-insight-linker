@@ -15,9 +15,9 @@ const ViewDocument = () => {
       
       const { data, error } = await supabase
         .from("documents")
-        .select("*")
-        .eq("id", id)
-        .single();
+        .select()
+        .match({ id })
+        .maybeSingle();
 
       if (error) {
         console.error("Erreur lors de la récupération du document:", error);
