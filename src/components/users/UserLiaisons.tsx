@@ -26,49 +26,53 @@ export const UserLiaisons = ({
   onAssignLiaison,
   onRemoveLiaison,
 }: UserLiaisonsProps) => {
+  const handleLiaisonSelect = async (liaisonId: string) => {
+    await onAssignLiaison(userId, liaisonId);
+  };
+
+  const availableLiaisons = liaisons.filter(
+    (l) =>
+      l.active &&
+      !clientLiaisons?.some(
+        (cl) => cl.client_id === userId && cl.liaison_id === l.id
+      )
+  );
+
+  const assignedLiaisons = clientLiaisons
+    ?.filter((cl) => cl.client_id === userId)
+    .map((cl) => liaisons?.find((l) => l.id === cl.liaison_id))
+    .filter((l): l is Liaison => l !== undefined);
+
   return (
     <div className="flex flex-col gap-2">
-      <Select onValueChange={(liaisonId) => onAssignLiaison(userId, liaisonId)}>
-        <SelectTrigger>
-          <SelectValue placeholder="Assigner une liaison" />
-        </SelectTrigger>
-        <SelectContent>
-          {liaisons
-            ?.filter(
-              (l) =>
-                l.active &&
-                !clientLiaisons?.some(
-                  (cl) => cl.client_id === userId && cl.liaison_id === l.id
-                )
-            )
-            .map((liaison) => (
+      {availableLiaisons.length > 0 && (
+        <Select onValueChange={handleLiaisonSelect}>
+          <SelectTrigger>
+            <SelectValue placeholder="Assigner une liaison" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableLiaisons.map((liaison) => (
               <SelectItem key={liaison.id} value={liaison.id}>
                 {liaison.name}
               </SelectItem>
             ))}
-        </SelectContent>
-      </Select>
+          </SelectContent>
+        </Select>
+      )}
       <div className="flex flex-wrap gap-2">
-        {clientLiaisons
-          ?.filter((cl) => cl.client_id === userId)
-          .map((cl) => {
-            const liaison = liaisons?.find((l) => l.id === cl.liaison_id);
-            return (
-              liaison && (
-                <Badge key={cl.liaison_id} className="flex items-center gap-1">
-                  {liaison.name}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 hover:bg-transparent"
-                    onClick={() => onRemoveLiaison(userId, liaison.id)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              )
-            );
-          })}
+        {assignedLiaisons.map((liaison) => (
+          <Badge key={liaison.id} className="flex items-center gap-1">
+            {liaison.name}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-4 w-4 p-0 hover:bg-transparent"
+              onClick={() => onRemoveLiaison(userId, liaison.id)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        ))}
       </div>
     </div>
   );
