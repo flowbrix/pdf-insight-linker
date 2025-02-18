@@ -11,15 +11,26 @@ const ViewDocument = () => {
   const { data: document, isLoading, refetch } = useQuery({
     queryKey: ["document", id],
     queryFn: async () => {
+      if (!id) throw new Error("ID manquant");
+      
       const { data, error } = await supabase
         .from("documents")
         .select("*")
         .eq("id", id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erreur lors de la récupération du document:", error);
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error("Document non trouvé");
+      }
+
       return data;
     },
+    enabled: !!id
   });
 
   const { data: documentUrl } = useQuery({
