@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { X, Plus } from "lucide-react";
 import { useState } from "react";
@@ -30,6 +31,7 @@ export const UserLiaisons = ({
   onRemoveLiaison,
 }: UserLiaisonsProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedLiaisons, setSelectedLiaisons] = useState<string[]>([]);
 
   const availableLiaisons = liaisons.filter(
     (l) =>
@@ -44,8 +46,20 @@ export const UserLiaisons = ({
     .map((cl) => liaisons?.find((l) => l.id === cl.liaison_id))
     .filter((l): l is Liaison => l !== undefined);
 
-  const handleAddLiaison = async (liaisonId: string) => {
-    await onAssignLiaison(userId, liaisonId);
+  const handleSave = async () => {
+    for (const liaisonId of selectedLiaisons) {
+      await onAssignLiaison(userId, liaisonId);
+    }
+    setSelectedLiaisons([]);
+    setIsDialogOpen(false);
+  };
+
+  const handleCheckboxChange = (liaisonId: string, checked: boolean) => {
+    setSelectedLiaisons((prev) =>
+      checked
+        ? [...prev, liaisonId]
+        : prev.filter((id) => id !== liaisonId)
+    );
   };
 
   return (
@@ -91,9 +105,10 @@ export const UserLiaisons = ({
                     >
                       <Checkbox
                         id={liaison.id}
-                        onCheckedChange={() => {
-                          handleAddLiaison(liaison.id);
-                        }}
+                        checked={selectedLiaisons.includes(liaison.id)}
+                        onCheckedChange={(checked) => 
+                          handleCheckboxChange(liaison.id, checked as boolean)
+                        }
                       />
                       <Label htmlFor={liaison.id} className="flex-grow cursor-pointer">
                         {liaison.name}
@@ -102,6 +117,14 @@ export const UserLiaisons = ({
                   ))}
                 </div>
               </ScrollArea>
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleSave} disabled={selectedLiaisons.length === 0}>
+                  Enregistrer
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </>
