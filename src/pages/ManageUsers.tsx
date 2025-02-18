@@ -113,16 +113,25 @@ const ManageUsers = () => {
   };
 
   const assignLiaison = async (userId: string, liaisonId: string) => {
+    // Vérifier si la liaison existe déjà
+    const { data: existingLiaison } = await supabase
+      .from("client_liaisons")
+      .select("*")
+      .eq("client_id", userId)
+      .eq("liaison_id", liaisonId)
+      .maybeSingle();
+
+    if (existingLiaison) {
+      toast.error("Cette liaison est déjà assignée à cet utilisateur");
+      return;
+    }
+
     const { error } = await supabase
       .from("client_liaisons")
       .insert({ client_id: userId, liaison_id: liaisonId });
 
     if (error) {
-      if (error.code === "23505") {
-        toast.error("Cette liaison est déjà assignée à cet utilisateur");
-      } else {
-        toast.error("Erreur lors de l'assignation de la liaison");
-      }
+      toast.error("Erreur lors de l'assignation de la liaison");
       return;
     }
 
