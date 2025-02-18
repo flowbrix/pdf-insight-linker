@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ const ManageLiaisons = () => {
     name: "",
   });
 
-  // Charger les liaisons
+  // Charger les liaisons et le rôle de l'utilisateur
   const { data: liaisons, isLoading } = useQuery({
     queryKey: ["liaisons"],
     queryFn: async () => {
@@ -42,6 +42,23 @@ const ManageLiaisons = () => {
 
       if (error) throw error;
       return data as Liaison[];
+    },
+  });
+
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Utilisateur non connecté");
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -90,6 +107,24 @@ const ManageLiaisons = () => {
     }
   };
 
+  // Supprimer une liaison
+  const deleteLiaison = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("liaisons")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success("Liaison supprimée avec succès");
+      queryClient.invalidateQueries({ queryKey: ["liaisons"] });
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      toast.error("Erreur lors de la suppression de la liaison");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -133,6 +168,9 @@ const ManageLiaisons = () => {
               <TableHead>Nom</TableHead>
               <TableHead>État</TableHead>
               <TableHead>Actions</TableHead>
+              {userProfile?.role === "admin" && (
+                <TableHead className="w-[100px]">Supprimer</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -155,6 +193,22 @@ const ManageLiaisons = () => {
                     }
                   />
                 </TableCell>
+                {userProfile?.role === "admin" && (
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (window.confirm("Êtes-vous sûr de vouloir supprimer cette liaison ?")) {
+                          deleteLiaison(liaison.id);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
