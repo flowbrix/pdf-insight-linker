@@ -68,11 +68,11 @@ export const UserLiaisons = ({
   };
 
   const handleCheckboxChange = (liaisonId: string, checked: boolean) => {
-    setSelectedLiaisons((prev) =>
-      checked
-        ? [...prev, liaisonId]
-        : prev.filter((id) => id !== liaisonId)
-    );
+    if (checked) {
+      setSelectedLiaisons((prev) => [...prev, liaisonId]);
+    } else {
+      setSelectedLiaisons((prev) => prev.filter((id) => id !== liaisonId));
+    }
   };
 
   const openDialog = () => {
@@ -113,9 +113,9 @@ export const UserLiaisons = ({
                   <Checkbox
                     id={liaison.id}
                     checked={selectedLiaisons.includes(liaison.id)}
-                    onCheckedChange={(checked) => 
-                      handleCheckboxChange(liaison.id, checked as boolean)
-                    }
+                    onCheckedChange={(checked) => {
+                      handleCheckboxChange(liaison.id, checked === true);
+                    }}
                   />
                   <Label htmlFor={liaison.id} className="flex-grow cursor-pointer">
                     {liaison.name}
