@@ -3,6 +3,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { DocumentSector, DocumentType } from "@/components/documents/ProcessDocumentForm";
 import { toast } from "sonner";
 
+// Fonction pour mapper les clés reçues vers les colonnes de la base
+const mapExtractedValues = (extractedValues: Record<string, string>) => {
+  return {
+    amorce_number: extractedValues["N° AMORCE"] || null,
+    cuve: extractedValues["CUVE"] || null,
+    section_number: extractedValues["Section N°"] || null,
+    equipment_number: extractedValues["N° EQUIPEMENT"] || 
+                     extractedValues["B.J. N°"] || 
+                     extractedValues["B.E. N°"] || 
+                     extractedValues["BU. N°"] || null,
+    cable_type: extractedValues["TYPE DE CABLE"] || 
+                extractedValues["Type Câble"] || null,
+    fibers: extractedValues["FIBRES"] || null,
+    scenario: extractedValues["SCENARIO"] || null,
+    length_number: extractedValues["N° LONGUEUR"] || 
+                  extractedValues["LG 1"] || null,
+    metrage: extractedValues["MÉTRAGE"] ? 
+             parseFloat(extractedValues["MÉTRAGE"].replace(/[^\d.]/g, '')) : null,
+    cote: extractedValues["CÔTÉ"] || null,
+    extremite_number: extractedValues["N° EXTREMITE"] || null,
+    extremite_sup_number: extractedValues["N° EXTREMITE SUP"] || null,
+    extremite_inf_number: extractedValues["N°0 EXTREMITE INF"] || null,
+    segment: extractedValues["SEGMENT"] || null,
+    cable_diameter: extractedValues["DIAMÈTRE CÂBLE"] ? 
+                   parseFloat(extractedValues["DIAMÈTRE CÂBLE"].replace(/[^\d.]/g, '')) : null,
+    machine: extractedValues["Machine"] || null,
+    recette: extractedValues["Recette"] || null,
+    plan_version: extractedValues["Version Plan"] || null,
+    activity_type: extractedValues["Type Activité"] || null,
+    plan_type: extractedValues["Type de Plan"] || null
+  };
+};
+
 interface ProcessDocumentParams {
   file: File;
   sector: DocumentSector;
@@ -108,14 +141,18 @@ export const processDocument = async ({
 
     // 5. Traiter la réponse du webhook Make.com
     const webhookResponse = await response.json();
-    console.log('Réponse du webhook:', webhookResponse);
+    console.log('Réponse du webhook avec données extraites:', webhookResponse);
 
-    if (webhookResponse.extractedData) {
-      // Mettre à jour le document avec les données extraites si elles sont présentes dans la réponse
+    if (webhookResponse.extracted_values) {
+      // Utiliser la fonction de mapping pour convertir les données
+      const mappedData = mapExtractedValues(webhookResponse.extracted_values);
+      console.log('Données mappées:', mappedData);
+
+      // Mettre à jour le document avec les données mappées
       const { error: updateError } = await supabase
         .from('documents')
         .update({
-          extracted_text: webhookResponse.extractedData,
+          ...mappedData,
           status: 'completed',
           processed_at: new Date().toISOString(),
         })
