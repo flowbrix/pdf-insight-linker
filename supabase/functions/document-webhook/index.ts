@@ -4,93 +4,108 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 interface DocumentData {
   documentId: string;
-  extractedData: {
-    liaison?: string;
-    amorce_number?: string;
-    cuve?: string;
-    section_number?: string;
-    equipment_number?: string;
-    cable_type?: string;
-    fibers?: string;
-    scenario?: string;
-    length_number?: string;
-    metrage?: number;
-    cote?: string;
-    extremite_number?: string;
-    extremite_sup_number?: string;
-    extremite_inf_number?: string;
-    segment?: string;
-    cable_diameter?: number;
-    machine?: string;
-    recette?: string;
-    plan_version?: string;
-    activity_type?: string;
-    plan_type?: string;
+  fileUrl: string;
+  fileName: string;
+  extractedData: Record<string, string>;
+  extracted_values: {
+    "LIAISON"?: string;
+    "N° AMORCE"?: string;
+    "CUVE"?: string;
+    "Section N°"?: string;
+    "N° EQUIPEMENT"?: string;
+    "TYPE DE CABLE"?: string;
+    "FIBRES"?: string;
+    "SCENARIO"?: string;
+    "N° LONGUEUR"?: string;
+    "MÉTRAGE"?: string;
+    "CÔTÉ"?: string;
+    "N° EXTREMITE"?: string;
+    "N° EXTREMITE SUP"?: string;
+    "N°0 EXTREMITE INF"?: string;
+    "SEGMENT"?: string;
+    "DIAMÈTRE CÂBLE"?: string;
+    "Machine"?: string;
+    "Recette"?: string;
+    "Version Plan"?: string;
+    "Type Activité"?: string;
+    "Type de Plan"?: string;
   };
 }
 
 Deno.serve(async (req) => {
-  // Gestion du pre-flight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Vérification de la méthode
     if (req.method !== 'POST') {
       throw new Error('Méthode non autorisée')
     }
 
-    // Récupération et validation du body
     const body: DocumentData = await req.json()
-    console.log('Données reçues du webhook:', body)
+    console.log('Données complètes reçues du webhook:', JSON.stringify(body, null, 2))
 
-    if (!body.documentId || !body.extractedData) {
-      throw new Error('Données manquantes: documentId et extractedData sont requis')
+    if (!body.documentId) {
+      throw new Error('documentId est requis')
     }
 
-    // Création du client Supabase
+    // Nettoyer et convertir les valeurs
+    const cleanNumber = (value: string | undefined) => {
+      if (!value) return null;
+      // Extraire uniquement les chiffres et le point décimal
+      const number = value.replace(/[^\d.]/g, '');
+      return number ? parseFloat(number) : null;
+    };
+
+    const extractedValues = body.extracted_values || {};
+    console.log('Valeurs extraites:', JSON.stringify(extractedValues, null, 2));
+
+    const updateData = {
+      liaison_id: null, // À gérer séparément si nécessaire
+      amorce_number: extractedValues["N° AMORCE"],
+      cuve: extractedValues["CUVE"],
+      section_number: extractedValues["Section N°"],
+      equipment_number: extractedValues["N° EQUIPEMENT"],
+      cable_type: extractedValues["TYPE DE CABLE"],
+      fibers: extractedValues["FIBRES"],
+      scenario: extractedValues["SCENARIO"],
+      length_number: extractedValues["N° LONGUEUR"],
+      metrage: cleanNumber(extractedValues["MÉTRAGE"]),
+      cote: extractedValues["CÔTÉ"],
+      extremite_number: extractedValues["N° EXTREMITE"],
+      extremite_sup_number: extractedValues["N° EXTREMITE SUP"],
+      extremite_inf_number: extractedValues["N°0 EXTREMITE INF"],
+      segment: extractedValues["SEGMENT"],
+      cable_diameter: cleanNumber(extractedValues["DIAMÈTRE CÂBLE"]),
+      machine: extractedValues["Machine"],
+      recette: extractedValues["Recette"],
+      plan_version: extractedValues["Version Plan"],
+      activity_type: extractedValues["Type Activité"],
+      plan_type: extractedValues["Type de Plan"],
+      status: 'completed',
+      processed_at: new Date().toISOString()
+    };
+
+    console.log('Données préparées pour la mise à jour:', JSON.stringify(updateData, null, 2));
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
-    // Mise à jour du document avec les données extraites
+    // Mise à jour du document
     const { data, error } = await supabaseClient
       .from('documents')
-      .update({
-        amorce_number: body.extractedData.amorce_number,
-        cuve: body.extractedData.cuve,
-        section_number: body.extractedData.section_number,
-        equipment_number: body.extractedData.equipment_number,
-        cable_type: body.extractedData.cable_type,
-        fibers: body.extractedData.fibers,
-        scenario: body.extractedData.scenario,
-        length_number: body.extractedData.length_number,
-        metrage: body.extractedData.metrage,
-        cote: body.extractedData.cote,
-        extremite_number: body.extractedData.extremite_number,
-        extremite_sup_number: body.extractedData.extremite_sup_number,
-        extremite_inf_number: body.extractedData.extremite_inf_number,
-        segment: body.extractedData.segment,
-        cable_diameter: body.extractedData.cable_diameter,
-        machine: body.extractedData.machine,
-        recette: body.extractedData.recette,
-        plan_version: body.extractedData.plan_version,
-        activity_type: body.extractedData.activity_type,
-        plan_type: body.extractedData.plan_type,
-        status: 'completed',
-        processed_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', body.documentId)
-      .select()
+      .select();
 
     if (error) {
-      console.error('Erreur lors de la mise à jour:', error)
-      throw error
+      console.error('Erreur lors de la mise à jour:', error);
+      throw error;
     }
 
-    console.log('Document mis à jour avec succès:', data)
+    console.log('Document mis à jour avec succès:', JSON.stringify(data, null, 2));
 
     return new Response(
       JSON.stringify({ success: true, data }),
@@ -98,16 +113,16 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
-    )
+    );
 
   } catch (error) {
-    console.error('Erreur webhook:', error)
+    console.error('Erreur webhook:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       }
-    )
+    );
   }
-})
+});
