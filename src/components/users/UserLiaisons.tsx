@@ -40,12 +40,13 @@ export const UserLiaisons = ({
     .map((cl) => liaisons?.find((l) => l.id === cl.liaison_id))
     .filter((l): l is Liaison => l !== undefined);
 
-  // Mettre à jour selectedLiaisons chaque fois que les liaisons assignées changent
+  // Mettre à jour selectedLiaisons uniquement à l'ouverture de la modale
   useEffect(() => {
     if (isDialogOpen) {
-      setSelectedLiaisons(assignedLiaisons.map((l) => l.id));
+      const initialSelectedLiaisons = assignedLiaisons.map((l) => l.id);
+      setSelectedLiaisons(initialSelectedLiaisons);
     }
-  }, [assignedLiaisons, isDialogOpen]);
+  }, [isDialogOpen]); // On retire assignedLiaisons des dépendances
 
   const handleSave = async () => {
     const currentAssignedIds = assignedLiaisons.map((l) => l.id);
