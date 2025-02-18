@@ -1,42 +1,19 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ViewDocuments from './pages/ViewDocuments';
+import ProcessDocument from './pages/ProcessDocument';
+import ViewDocument from './pages/ViewDocument';
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Layout from "./components/Layout";
-import ProcessDocuments from "./pages/ProcessDocuments";
-import ManageUsers from "./pages/ManageUsers";
-import ManageLiaisons from "./pages/ManageLiaisons";
-import ViewDocuments from "./pages/ViewDocuments";
-import Auth from "./pages/Auth";
-import ImageTest from "./pages/ImageTest";
-
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Index />} />
-            <Route path="process" element={<ProcessDocuments />} />
-            <Route path="documents" element={<ViewDocuments />} />
-            <Route path="users" element={<ManageUsers />} />
-            <Route path="liaisons" element={<ManageLiaisons />} />
-            <Route path="auth" element={<Auth />} />
-            <Route path="test-image" element={<ImageTest />} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ViewDocuments />} />
+        <Route path="/process" element={<ProcessDocument />} />
+        <Route path="/documents/:id" element={<ViewDocument />} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
 
 export default App;

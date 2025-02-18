@@ -45,6 +45,7 @@ interface ProcessDocumentParams {
   makeVisible: boolean;
   onUploadProgress: (progress: number) => void;
   onProcessingProgress: (progress: number) => void;
+  onSuccess?: (documentId: string) => void;
 }
 
 export const processDocument = async ({
@@ -56,6 +57,7 @@ export const processDocument = async ({
   makeVisible,
   onUploadProgress,
   onProcessingProgress,
+  onSuccess,
 }: ProcessDocumentParams) => {
   try {
     const BUCKET_NAME = 'documents';
@@ -144,11 +146,9 @@ export const processDocument = async ({
     console.log('Réponse du webhook avec données extraites:', webhookResponse);
 
     if (webhookResponse.extracted_values) {
-      // Utiliser la fonction de mapping pour convertir les données
       const mappedData = mapExtractedValues(webhookResponse.extracted_values);
       console.log('Données mappées:', mappedData);
 
-      // Mettre à jour le document avec les données mappées
       const { error: updateError } = await supabase
         .from('documents')
         .update({
@@ -163,13 +163,16 @@ export const processDocument = async ({
         toast.error("Erreur lors de la mise à jour des données extraites");
       } else {
         console.log('Données extraites mises à jour avec succès');
+        toast.success("Document traité avec succès", {
+          action: {
+            label: "Voir le résultat",
+            onClick: () => onSuccess?.(document.id)
+          },
+        });
       }
     }
 
-    console.log('Document envoyé avec succès au webhook');
-    toast.success("Document envoyé avec succès");
     onProcessingProgress(100);
-    
     return document;
   } catch (error) {
     console.error('Error in processDocument:', error);
