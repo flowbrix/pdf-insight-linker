@@ -47,7 +47,7 @@ export const UserLiaisons = ({
     <div className="flex flex-col gap-2">
       {availableLiaisons.length > 0 && (
         <Select onValueChange={handleLiaisonSelect}>
-          <SelectTrigger>
+          <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Assigner une liaison" />
           </SelectTrigger>
           <SelectContent>
