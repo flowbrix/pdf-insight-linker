@@ -1,4 +1,7 @@
+
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query"; // Ajout de l'import useQueryClient
+import { supabase } from "@/integrations/supabase/client"; // Ajout de l'import supabase
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -9,6 +12,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useLiaisons } from "@/hooks/useLiaisons";
 
 const ManageUsers = () => {
+  const queryClient = useQueryClient(); // Initialisation du queryClient
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [editedUser, setEditedUser] = useState<Partial<Profile>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -40,6 +44,7 @@ const ManageUsers = () => {
     }
 
     toast.success("Profil mis à jour avec succès");
+    queryClient.invalidateQueries({ queryKey: ["profiles"] });
     setIsDialogOpen(false);
   };
 
