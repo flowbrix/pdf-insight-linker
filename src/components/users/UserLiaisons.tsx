@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X } from "lucide-react";
+import { useState } from "react";
 import { type Liaison, type ClientLiaison } from "@/types/user";
 
 interface UserLiaisonsProps {
@@ -26,8 +27,11 @@ export const UserLiaisons = ({
   onAssignLiaison,
   onRemoveLiaison,
 }: UserLiaisonsProps) => {
+  const [selectedLiaison, setSelectedLiaison] = useState<string>("");
+
   const handleLiaisonSelect = async (liaisonId: string) => {
     await onAssignLiaison(userId, liaisonId);
+    setSelectedLiaison(""); // Réinitialiser la sélection après l'ajout
   };
 
   const availableLiaisons = liaisons.filter(
@@ -46,7 +50,7 @@ export const UserLiaisons = ({
   return (
     <div className="flex flex-col gap-2">
       {availableLiaisons.length > 0 && (
-        <Select onValueChange={handleLiaisonSelect}>
+        <Select value={selectedLiaison} onValueChange={handleLiaisonSelect}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Assigner une liaison" />
           </SelectTrigger>
