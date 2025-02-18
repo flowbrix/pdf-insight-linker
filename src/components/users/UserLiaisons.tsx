@@ -9,7 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { type Liaison, type ClientLiaison } from "@/types/user";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,13 @@ export const UserLiaisons = ({
     ?.filter((cl) => cl.client_id === userId)
     .map((cl) => liaisons?.find((l) => l.id === cl.liaison_id))
     .filter((l): l is Liaison => l !== undefined);
+
+  // Mettre à jour selectedLiaisons chaque fois que les liaisons assignées changent
+  useEffect(() => {
+    if (isDialogOpen) {
+      setSelectedLiaisons(assignedLiaisons.map((l) => l.id));
+    }
+  }, [assignedLiaisons, isDialogOpen]);
 
   const handleSave = async () => {
     const currentAssignedIds = assignedLiaisons.map((l) => l.id);
