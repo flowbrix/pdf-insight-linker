@@ -40,13 +40,12 @@ export const UserLiaisons = ({
     .map((cl) => liaisons?.find((l) => l.id === cl.liaison_id))
     .filter((l): l is Liaison => l !== undefined);
 
-  // Mettre à jour selectedLiaisons uniquement à l'ouverture de la modale
+  const assignedLiaisonIds = assignedLiaisons.map((l) => l.id);
+
+  // Initialiser selectedLiaisons avec les liaisons assignées actuelles
   useEffect(() => {
-    if (isDialogOpen) {
-      const initialSelectedLiaisons = assignedLiaisons.map((l) => l.id);
-      setSelectedLiaisons(initialSelectedLiaisons);
-    }
-  }, [isDialogOpen]); // On retire assignedLiaisons des dépendances
+    setSelectedLiaisons(assignedLiaisonIds);
+  }, [assignedLiaisonIds]);
 
   const handleSave = async () => {
     const currentAssignedIds = assignedLiaisons.map((l) => l.id);
@@ -69,16 +68,11 @@ export const UserLiaisons = ({
   };
 
   const handleCheckboxChange = (liaisonId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedLiaisons((prev) => [...prev, liaisonId]);
-    } else {
-      setSelectedLiaisons((prev) => prev.filter((id) => id !== liaisonId));
-    }
-  };
-
-  const openDialog = () => {
-    setSelectedLiaisons(assignedLiaisons.map((l) => l.id));
-    setIsDialogOpen(true);
+    setSelectedLiaisons((prev) =>
+      checked
+        ? [...prev, liaisonId]
+        : prev.filter((id) => id !== liaisonId)
+    );
   };
 
   return (
@@ -93,7 +87,7 @@ export const UserLiaisons = ({
       
       <Button
         variant="ghost"
-        onClick={openDialog}
+        onClick={() => setIsDialogOpen(true)}
         className="ml-2"
       >
         Assignation
