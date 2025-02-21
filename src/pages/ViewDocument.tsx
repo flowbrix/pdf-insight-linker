@@ -5,9 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { DocumentDataEditor } from "@/components/documents/DocumentDataEditor";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const ViewDocument = () => {
   const { id } = useParams();
+  const queryClient = useQueryClient();
 
   const { data: document, isLoading } = useQuery({
     queryKey: ["document", id],
@@ -45,6 +47,12 @@ const ViewDocument = () => {
     .from("documents")
     .getPublicUrl(document.file_path);
 
+  const handleSave = () => {
+    // Invalidate the query to refetch the document data
+    queryClient.invalidateQueries({ queryKey: ["document", id] });
+    toast.success("Document mis à jour avec succès");
+  };
+
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Document : {document.file_name}</h1>
@@ -63,7 +71,10 @@ const ViewDocument = () => {
         {/* Éditeur de données */}
         <Card className="p-4">
           <h2 className="text-xl font-semibold mb-4">Données extraites</h2>
-          <DocumentDataEditor document={document} />
+          <DocumentDataEditor
+            initialData={document}
+            onSave={handleSave}
+          />
         </Card>
       </div>
     </div>
