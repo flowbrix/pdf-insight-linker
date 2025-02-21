@@ -3,10 +3,13 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentDataEditor } from "@/components/documents/DocumentDataEditor";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const { data: document, isLoading, refetch } = useQuery({
     queryKey: ["document", id],
@@ -44,35 +47,63 @@ const ViewDocument = () => {
     },
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!document) {
-    return <div>Document non trouvé</div>;
-  }
-
   return (
-    <div className="flex h-screen">
-      <div className="w-1/2 border-r">
-        <DocumentDataEditor 
-          initialData={document} 
-          onSave={refetch}
-        />
+    <div className="h-screen flex flex-col">
+      <div className="p-4 border-b">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          className="mb-2"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Retour
+        </Button>
+        <h1 className="text-2xl font-bold">
+          {document ? `Document: ${document.file_name}` : 'Chargement...'}
+        </h1>
       </div>
-      <div className="w-1/2">
-        {documentUrl && (
-          <iframe
-            src={documentUrl}
-            className="w-full h-full"
-            title="Document Preview"
-          />
-        )}
-      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center flex-1">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      ) : !document ? (
+        <div className="flex items-center justify-center flex-1">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Document non trouvé</h2>
+            <p className="text-gray-600 mb-4">
+              Le document demandé n'existe pas ou a été supprimé.
+            </p>
+            <Button onClick={() => navigate("/")}>
+              Retour à l'accueil
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-1/2 border-r overflow-auto">
+            <DocumentDataEditor 
+              initialData={document} 
+              onSave={refetch}
+            />
+          </div>
+          <div className="w-1/2">
+            {documentUrl ? (
+              <iframe
+                src={documentUrl}
+                className="w-full h-full"
+                title="Aperçu du document"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-600">
+                  Impossible de charger l'aperçu du document
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

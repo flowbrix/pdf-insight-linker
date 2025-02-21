@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface DocumentData {
   id: string;
@@ -37,8 +38,10 @@ interface DocumentDataEditorProps {
 
 export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorProps) => {
   const [data, setData] = useState<DocumentData>(initialData);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
+    setIsSaving(true);
     try {
       const { error } = await supabase
         .from('documents')
@@ -52,73 +55,83 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       toast.error("Erreur lors de la sauvegarde des modifications");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  return (
-    <div className="space-y-6 p-6 overflow-y-auto max-h-[calc(100vh-4rem)]">
-      <h2 className="text-2xl font-bold mb-6">Données Extraites</h2>
+  const renderField = (label: string, field: keyof DocumentData, type: 'text' | 'number' = 'text') => (
+    <div className="space-y-2">
+      <Label htmlFor={field}>{label}</Label>
+      <Input
+        id={field}
+        type={type}
+        value={data[field] || ''}
+        onChange={(e) => setData({
+          ...data,
+          [field]: type === 'number' ? 
+            e.target.value ? parseFloat(e.target.value) : null 
+            : e.target.value
+        })}
+      />
+    </div>
+  );
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="amorce">N° Amorce</Label>
-            <Input
-              id="amorce"
-              value={data.amorce_number || ''}
-              onChange={(e) => setData({...data, amorce_number: e.target.value})}
-            />
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">Données Extraites</h2>
+        <Button 
+          onClick={handleSave}
+          disabled={isSaving}
+          className="w-40"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Enregistrement...
+            </>
+          ) : (
+            "Enregistrer"
+          )}
+        </Button>
+      </div>
+
+      <div className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            {renderField('N° Amorce', 'amorce_number')}
+            {renderField('Cuve', 'cuve')}
+            {renderField('Section N°', 'section_number')}
+            {renderField('N° Équipement', 'equipment_number')}
+            {renderField('Type de Câble', 'cable_type')}
+            {renderField('Fibres', 'fibers')}
           </div>
-          <div>
-            <Label htmlFor="cuve">Cuve</Label>
-            <Input
-              id="cuve"
-              value={data.cuve || ''}
-              onChange={(e) => setData({...data, cuve: e.target.value})}
-            />
-          </div>
-          <div>
-            <Label htmlFor="section">Section N°</Label>
-            <Input
-              id="section"
-              value={data.section_number || ''}
-              onChange={(e) => setData({...data, section_number: e.target.value})}
-            />
+          <div className="space-y-4">
+            {renderField('Scénario', 'scenario')}
+            {renderField('N° Longueur', 'length_number')}
+            {renderField('Métrage', 'metrage', 'number')}
+            {renderField('Côté', 'cote')}
+            {renderField('N° Extrémité', 'extremite_number')}
+            {renderField('Segment', 'segment')}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="equipment">N° Équipement</Label>
-            <Input
-              id="equipment"
-              value={data.equipment_number || ''}
-              onChange={(e) => setData({...data, equipment_number: e.target.value})}
-            />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            {renderField('N° Extrémité Sup', 'extremite_sup_number')}
+            {renderField('N° Extrémité Inf', 'extremite_inf_number')}
+            {renderField('Diamètre Câble', 'cable_diameter', 'number')}
           </div>
-          <div>
-            <Label htmlFor="cableType">Type de Câble</Label>
-            <Input
-              id="cableType"
-              value={data.cable_type || ''}
-              onChange={(e) => setData({...data, cable_type: e.target.value})}
-            />
-          </div>
-          <div>
-            <Label htmlFor="metrage">Métrage</Label>
-            <Input
-              id="metrage"
-              type="number"
-              value={data.metrage || ''}
-              onChange={(e) => setData({...data, metrage: parseFloat(e.target.value)})}
-            />
+          <div className="space-y-4">
+            {renderField('Machine', 'machine')}
+            {renderField('Recette', 'recette')}
+            {renderField('Version Plan', 'plan_version')}
+            {renderField('Type Activité', 'activity_type')}
+            {renderField('Type de Plan', 'plan_type')}
           </div>
         </div>
       </div>
-
-      <Button onClick={handleSave} className="mt-6">
-        Enregistrer les modifications
-      </Button>
     </div>
   );
 };
