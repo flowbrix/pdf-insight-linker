@@ -1,5 +1,5 @@
 
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 const ViewDocument = () => {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: document, isLoading } = useQuery({
     queryKey: ["document", id],
@@ -66,6 +67,8 @@ const ViewDocument = () => {
     // Invalidate the query to refetch the document data
     queryClient.invalidateQueries({ queryKey: ["document", id] });
     toast.success("Document mis à jour avec succès");
+    // Redirection vers la liste des documents
+    navigate('/documents');
   };
 
   return (
