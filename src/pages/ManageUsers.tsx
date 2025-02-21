@@ -1,7 +1,7 @@
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query"; // Ajout de l'import useQueryClient
-import { supabase } from "@/integrations/supabase/client"; // Ajout de l'import supabase
+import { useQueryClient } from "@tanstack/react-query"; 
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -12,7 +12,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useLiaisons } from "@/hooks/useLiaisons";
 
 const ManageUsers = () => {
-  const queryClient = useQueryClient(); // Initialisation du queryClient
+  const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [editedUser, setEditedUser] = useState<Partial<Profile>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,6 +55,9 @@ const ManageUsers = () => {
         return;
       }
 
+      // Fermer d'abord la modale
+      setIsCreateDialogOpen(false);
+
       const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
         email: newUser.email,
         options: {
@@ -68,6 +71,7 @@ const ManageUsers = () => {
 
       if (authError) throw authError;
 
+      // Attendre un peu pour laisser le temps au trigger de créer le profil
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const { error: profileError } = await supabase
@@ -112,7 +116,6 @@ const ManageUsers = () => {
       }
 
       toast.success("Un email d'invitation a été envoyé à l'utilisateur");
-      setIsCreateDialogOpen(false);
       setNewUser({
         email: "",
         first_name: "",
@@ -123,6 +126,8 @@ const ManageUsers = () => {
     } catch (error: any) {
       console.error("Erreur lors de la création de l'utilisateur:", error);
       toast.error("Erreur lors de la création de l'utilisateur : " + error.message);
+      // Réouvrir la modale en cas d'erreur pour permettre à l'utilisateur de corriger
+      setIsCreateDialogOpen(true);
     }
   };
 
