@@ -2,10 +2,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { SectorFilter } from "@/components/documents/SectorFilter";
+import { LiaisonFilter } from "@/components/documents/LiaisonFilter";
+import { LengthFilter } from "@/components/documents/LengthFilter";
 import { DocumentsPagination } from "@/components/documents/DocumentsPagination";
 
 type Sector = "SAT" | "Embarquement" | "Cable" | "all";
@@ -13,6 +15,9 @@ type Sector = "SAT" | "Embarquement" | "Cable" | "all";
 const ViewDocuments = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSector, setSelectedSector] = useState<Sector>("all");
+  const [selectedLiaison, setSelectedLiaison] = useState("all");
+  const [selectedLength, setSelectedLength] = useState("all");
+  const [availableLengths, setAvailableLengths] = useState<string[]>([]);
   const itemsPerPage = 10;
 
   const { data: profile } = useQuery({
@@ -33,11 +38,11 @@ const ViewDocuments = () => {
   });
 
   const { data: documents, isLoading } = useQuery({
-    queryKey: ["documents", currentPage, selectedSector],
+    queryKey: ["documents", currentPage, selectedSector, selectedLiaison, selectedLength],
     queryFn: async () => {
       let query = supabase
         .from("documents")
-        .select("*")
+        .select("*, liaisons(name)")
         .order("created_at", { ascending: false });
 
       if (profile?.role === "client") {
@@ -46,6 +51,14 @@ const ViewDocuments = () => {
 
       if (selectedSector && selectedSector !== "all") {
         query = query.eq("sector", selectedSector);
+      }
+
+      if (selectedLiaison && selectedLiaison !== "all") {
+        query = query.eq("liaison_id", selectedLiaison);
+      }
+
+      if (selectedLength && selectedLength !== "all") {
+        query = query.eq("length_number", selectedLength);
       }
 
       const start = (currentPage - 1) * itemsPerPage;
@@ -59,6 +72,25 @@ const ViewDocuments = () => {
       return { documents: data, total: count || 0 };
     },
   });
+
+  useEffect(() => {
+    const fetchLengths = async () => {
+      const { data, error } = await supabase
+        .from("documents")
+        .select("length_number")
+        .not("length_number", "is", null);
+
+      if (error) {
+        console.error("Erreur lors du chargement des numéros de longueur:", error);
+        return;
+      }
+
+      const uniqueLengths = Array.from(new Set(data.map(doc => doc.length_number))).filter(Boolean);
+      setAvailableLengths(uniqueLengths);
+    };
+
+    fetchLengths();
+  }, []);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
@@ -87,12 +119,23 @@ const ViewDocuments = () => {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-4 mb-6">
         <h1 className="text-3xl font-bold">Documents</h1>
-        <SectorFilter
-          selectedSector={selectedSector}
-          onSectorChange={(value: Sector) => setSelectedSector(value)}
-        />
+        <div className="flex flex-wrap gap-4">
+          <SectorFilter
+            selectedSector={selectedSector}
+            onSectorChange={(value: Sector) => setSelectedSector(value)}
+          />
+          <LiaisonFilter
+            selectedLiaison={selectedLiaison}
+            onLiaisonChange={setSelectedLiaison}
+          />
+          <LengthFilter
+            selectedLength={selectedLength}
+            availableLengths={availableLengths}
+            onLengthChange={setSelectedLength}
+          />
+        </div>
       </div>
 
       <Card>
