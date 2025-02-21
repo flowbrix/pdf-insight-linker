@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { DocumentDataEditor } from "@/components/documents/DocumentDataEditor";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 const ViewDocument = () => {
   const { id } = useParams();
@@ -35,11 +36,20 @@ const ViewDocument = () => {
   });
 
   if (isLoading) {
-    return <div>Chargement...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Chargement du document...</span>
+      </div>
+    );
   }
 
   if (!document) {
-    return <div>Document non trouvé</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        Document non trouvé
+      </div>
+    );
   }
 
   // Obtenez l'URL publique du document

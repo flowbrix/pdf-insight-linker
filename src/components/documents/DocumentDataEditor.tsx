@@ -37,7 +37,30 @@ interface DocumentDataEditorProps {
 }
 
 export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorProps) => {
-  const [data, setData] = useState<DocumentData>(initialData);
+  const [data, setData] = useState<DocumentData>({
+    ...initialData,
+    // Ensure all optional fields have at least null as value
+    amorce_number: initialData.amorce_number ?? null,
+    cuve: initialData.cuve ?? null,
+    section_number: initialData.section_number ?? null,
+    equipment_number: initialData.equipment_number ?? null,
+    cable_type: initialData.cable_type ?? null,
+    fibers: initialData.fibers ?? null,
+    scenario: initialData.scenario ?? null,
+    length_number: initialData.length_number ?? null,
+    metrage: initialData.metrage ?? null,
+    cote: initialData.cote ?? null,
+    extremite_number: initialData.extremite_number ?? null,
+    extremite_sup_number: initialData.extremite_sup_number ?? null,
+    extremite_inf_number: initialData.extremite_inf_number ?? null,
+    segment: initialData.segment ?? null,
+    cable_diameter: initialData.cable_diameter ?? null,
+    machine: initialData.machine ?? null,
+    recette: initialData.recette ?? null,
+    plan_version: initialData.plan_version ?? null,
+    activity_type: initialData.activity_type ?? null,
+    plan_type: initialData.plan_type ?? null,
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -71,7 +94,7 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
           ...data,
           [field]: type === 'number' ? 
             e.target.value ? parseFloat(e.target.value) : null 
-            : e.target.value
+            : e.target.value || null
         })}
       />
     </div>
