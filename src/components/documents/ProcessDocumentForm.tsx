@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,6 +97,12 @@ const ProcessDocumentForm = () => {
         onUploadProgress: setUploadProgress,
         onProcessingProgress: setProcessingProgress,
         onSuccess: (documentId) => {
+          toast.success("Document traité avec succès", {
+            action: {
+              label: "Voir le résultat",
+              onClick: () => navigate(`/documents/${documentId}`)
+            },
+          });
           navigate(`/documents/${documentId}`);
         },
       });

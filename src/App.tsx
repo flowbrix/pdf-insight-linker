@@ -25,11 +25,12 @@ const App = () => {
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/" element={<ViewDocuments />} />
+            <Route path="/documents" element={<ViewDocuments />} />
             <Route path="/process" element={<ProcessDocuments />} />
             <Route path="/documents/:id" element={<ViewDocument />} />
             <Route path="/users" element={<ManageUsers />} />
             <Route path="/liaisons" element={<ManageLiaisons />} />
+            <Route path="/" element={<ViewDocuments />} />
           </Routes>
         </Layout>
       </BrowserRouter>
