@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface Document {
   id: string;
@@ -64,15 +65,11 @@ export const DocumentList = ({ documents, onDownload }: DocumentListProps) => {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const handleView = async (doc: Document) => {
-    const { data: { publicUrl } } = supabase.storage
-      .from('documents')
-      .getPublicUrl(doc.file_path);
-
-    setPublicUrl(publicUrl);
-    setSelectedDoc(doc);
-    setIsViewerOpen(true);
+    console.log("Navigating to document:", doc.id);
+    navigate(`/documents/${doc.id}`);
   };
 
   return (
@@ -129,25 +126,6 @@ export const DocumentList = ({ documents, onDownload }: DocumentListProps) => {
           ))}
         </TableBody>
       </Table>
-
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-6xl h-[95vh] p-0">
-          <DialogHeader className="px-6 py-3 border-b">
-            <DialogTitle className="text-xl font-semibold">
-              {selectedDoc?.file_name}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedDoc && publicUrl && (
-            <div className="flex-1 w-full h-full">
-              <iframe
-                src={publicUrl}
-                className="w-full h-[calc(95vh-56px)]"
-                title={selectedDoc.file_name}
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
