@@ -39,7 +39,6 @@ interface DocumentDataEditorProps {
 export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorProps) => {
   const [data, setData] = useState<DocumentData>({
     ...initialData,
-    // Ensure all optional fields have at least null as value
     amorce_number: initialData.amorce_number ?? null,
     cuve: initialData.cuve ?? null,
     section_number: initialData.section_number ?? null,
@@ -66,7 +65,7 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      console.log('Saving data:', data);
+      console.log('Sauvegarde des données:', data);
       const { error } = await supabase
         .from('documents')
         .update(data)
@@ -77,6 +76,7 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
         throw error;
       }
       
+      console.log('Sauvegarde réussie, appel du callback onSave');
       toast.success("Modifications enregistrées avec succès");
       onSave();
     } catch (error) {
@@ -162,4 +162,3 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
     </div>
   );
 };
-

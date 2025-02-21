@@ -16,7 +16,7 @@ const ViewDocument = () => {
   const { data: document, isLoading } = useQuery({
     queryKey: ["document", id],
     queryFn: async () => {
-      console.log('Fetching document with id:', id);
+      console.log('Chargement du document avec id:', id);
       const { data, error } = await supabase
         .from("documents")
         .select("*")
@@ -24,18 +24,18 @@ const ViewDocument = () => {
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching document:', error);
+        console.error('Erreur lors du chargement du document:', error);
         toast.error("Erreur lors du chargement du document");
         throw error;
       }
 
       if (!data) {
-        console.error('No document found with id:', id);
+        console.error('Aucun document trouvé avec id:', id);
         toast.error("Document non trouvé");
         throw new Error("Document non trouvé");
       }
 
-      console.log('Document data:', data);
+      console.log('Données du document:', data);
       return data;
     },
   });
@@ -57,17 +57,13 @@ const ViewDocument = () => {
     );
   }
 
-  // Obtenez l'URL publique du document
   const { data: { publicUrl } } = supabase.storage
     .from("documents")
     .getPublicUrl(document.file_path);
 
-  const handleSave = () => {
-    console.log('Invalidating queries...');
-    // Invalidate the query to refetch the document data
-    queryClient.invalidateQueries({ queryKey: ["document", id] });
-    toast.success("Document mis à jour avec succès");
-    // Redirection vers la liste des documents
+  const handleSave = async () => {
+    console.log('Invalidation des requêtes...');
+    await queryClient.invalidateQueries({ queryKey: ["document", id] });
     navigate('/documents');
   };
 
@@ -76,7 +72,6 @@ const ViewDocument = () => {
       <h1 className="text-2xl font-bold mb-6">Document : {document.file_name}</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Visualisation du PDF */}
         <Card className="p-4">
           <h2 className="text-xl font-semibold mb-4">Aperçu du document</h2>
           <iframe
@@ -86,7 +81,6 @@ const ViewDocument = () => {
           />
         </Card>
 
-        {/* Éditeur de données */}
         <Card className="p-4">
           <h2 className="text-xl font-semibold mb-4">Données extraites</h2>
           <DocumentDataEditor
