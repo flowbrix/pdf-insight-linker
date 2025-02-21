@@ -13,15 +13,16 @@ const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
-  const [isResetMode, setIsResetMode] = useState(false);
+  const [password, setPassword] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -29,28 +30,30 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast.success("Un email de connexion vous a été envoyé");
+      toast.success("Un email de vérification vous a été envoyé");
     } catch (error: any) {
-      toast.error(error.message || "Erreur lors de l'envoi de l'email");
+      toast.error(error.message || "Erreur lors de l'inscription");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
       if (error) throw error;
 
-      toast.success("Un email de réinitialisation vous a été envoyé");
+      toast.success("Connexion réussie");
+      navigate("/");
     } catch (error: any) {
-      toast.error(error.message || "Erreur lors de l'envoi de l'email de réinitialisation");
+      toast.error(error.message || "Erreur lors de la connexion");
     } finally {
       setIsLoading(false);
     }
@@ -60,43 +63,74 @@ const Auth = () => {
     <div className="container mx-auto flex items-center justify-center min-h-screen">
       <Card className="w-[400px]">
         <CardHeader>
-          <CardTitle>{isResetMode ? "Réinitialiser le mot de passe" : "Connexion"}</CardTitle>
+          <CardTitle>Authentication</CardTitle>
           <CardDescription>
-            {isResetMode 
-              ? "Entrez votre email pour recevoir un lien de réinitialisation"
-              : "Connectez-vous avec votre email"}
+            Connectez-vous ou créez un compte pour accéder à l'application
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={isResetMode ? handleResetPassword : handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading 
-                ? "Envoi en cours..." 
-                : isResetMode 
-                  ? "Réinitialiser le mot de passe"
-                  : "Recevoir le lien de connexion"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full mt-2"
-              onClick={() => setIsResetMode(!isResetMode)}
-            >
-              {isResetMode 
-                ? "Retour à la connexion"
-                : "Mot de passe oublié ?"}
-            </Button>
-          </form>
+          <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Connexion</TabsTrigger>
+              <TabsTrigger value="signup">Inscription</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="signin">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signin-password">Mot de passe</Label>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Connexion..." : "Se connecter"}
+                </Button>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Mot de passe</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Inscription..." : "S'inscrire"}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

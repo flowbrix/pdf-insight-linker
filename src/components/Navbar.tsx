@@ -54,7 +54,7 @@ const Navbar = () => {
       toast.error("Erreur lors de la déconnexion");
       return;
     }
-    navigate("/");
+    navigate("/auth");
     toast.success("Déconnexion réussie");
   };
 
