@@ -15,6 +15,7 @@ const ViewDocument = () => {
   const { data: document, isLoading } = useQuery({
     queryKey: ["document", id],
     queryFn: async () => {
+      console.log('Fetching document with id:', id);
       const { data, error } = await supabase
         .from("documents")
         .select("*")
@@ -22,15 +23,18 @@ const ViewDocument = () => {
         .maybeSingle();
 
       if (error) {
+        console.error('Error fetching document:', error);
         toast.error("Erreur lors du chargement du document");
         throw error;
       }
 
       if (!data) {
+        console.error('No document found with id:', id);
         toast.error("Document non trouvé");
         throw new Error("Document non trouvé");
       }
 
+      console.log('Document data:', data);
       return data;
     },
   });
@@ -58,6 +62,7 @@ const ViewDocument = () => {
     .getPublicUrl(document.file_path);
 
   const handleSave = () => {
+    console.log('Invalidating queries...');
     // Invalidate the query to refetch the document data
     queryClient.invalidateQueries({ queryKey: ["document", id] });
     toast.success("Document mis à jour avec succès");

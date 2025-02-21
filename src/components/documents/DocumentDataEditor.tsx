@@ -66,12 +66,16 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      console.log('Saving data:', data);
       const { error } = await supabase
         .from('documents')
         .update(data)
         .eq('id', data.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur lors de la sauvegarde:', error);
+        throw error;
+      }
       
       toast.success("Modifications enregistrées avec succès");
       onSave();
@@ -158,3 +162,4 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
     </div>
   );
 };
+
