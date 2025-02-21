@@ -37,6 +37,30 @@ const ViewDocuments = () => {
     },
   });
 
+  const { data: clientLiaisons } = useQuery({
+    queryKey: ["client_liaisons", profile?.id],
+    enabled: profile?.role === "client",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_liaisons")
+        .select("liaison_id")
+        .eq("client_id", profile?.id);
+
+      if (error) {
+        toast.error("Erreur lors du chargement des liaisons");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  // Si c'est un client et qu'il a des liaisons, on force le filtre sur la première liaison
+  useEffect(() => {
+    if (profile?.role === "client" && clientLiaisons?.length) {
+      setSelectedLiaison(clientLiaisons[0].liaison_id);
+    }
+  }, [profile?.role, clientLiaisons]);
+
   const { data: documents, isLoading } = useQuery({
     queryKey: ["documents", currentPage, selectedSector, selectedLiaison, selectedLength],
     queryFn: async () => {
@@ -46,7 +70,14 @@ const ViewDocuments = () => {
         .order("created_at", { ascending: false });
 
       if (profile?.role === "client") {
-        query = query.eq("client_visible", true);
+        if (!clientLiaisons?.length) {
+          // Si le client n'a pas de liaisons assignées, ne retourner aucun document
+          return { documents: [], total: 0 };
+        }
+        // Filtrer les documents pour ne montrer que ceux des liaisons assignées au client
+        query = query
+          .eq("client_visible", true)
+          .in("liaison_id", clientLiaisons.map(cl => cl.liaison_id));
       }
 
       if (selectedSector && selectedSector !== "all") {
@@ -126,10 +157,12 @@ const ViewDocuments = () => {
             selectedSector={selectedSector}
             onSectorChange={(value: Sector) => setSelectedSector(value)}
           />
-          <LiaisonFilter
-            selectedLiaison={selectedLiaison}
-            onLiaisonChange={setSelectedLiaison}
-          />
+          {profile?.role !== "client" && (
+            <LiaisonFilter
+              selectedLiaison={selectedLiaison}
+              onLiaisonChange={setSelectedLiaison}
+            />
+          )}
           <LengthFilter
             selectedLength={selectedLength}
             availableLengths={availableLengths}
@@ -159,3 +192,4 @@ const ViewDocuments = () => {
 };
 
 export default ViewDocuments;
+
