@@ -155,14 +155,14 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
             <div className="space-y-2">
               <Label htmlFor="liaison">Liaison</Label>
               <Select
-                value={data.liaison_id || ""}
-                onValueChange={(value) => setData({ ...data, liaison_id: value })}
+                value={data.liaison_id || "none"}
+                onValueChange={(value) => setData({ ...data, liaison_id: value === "none" ? null : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner une liaison" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucune liaison</SelectItem>
+                  <SelectItem value="none">Aucune liaison</SelectItem>
                   {liaisons?.map((liaison) => (
                     <SelectItem key={liaison.id} value={liaison.id}>
                       {liaison.name}
