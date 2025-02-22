@@ -6,6 +6,14 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useLiaisons } from "@/hooks/useLiaisons";
 
 interface DocumentData {
   id: string;
@@ -29,6 +37,7 @@ interface DocumentData {
   plan_version: string | null;
   activity_type: string | null;
   plan_type: string | null;
+  liaison_id: string | null;
 }
 
 interface DocumentDataEditorProps {
@@ -59,8 +68,10 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
     plan_version: initialData.plan_version ?? null,
     activity_type: initialData.activity_type ?? null,
     plan_type: initialData.plan_type ?? null,
+    liaison_id: initialData.liaison_id ?? null,
   });
   const [isSaving, setIsSaving] = useState(false);
+  const { liaisons } = useLiaisons();
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -141,6 +152,25 @@ export const DocumentDataEditor = ({ initialData, onSave }: DocumentDataEditorPr
             {renderField('Côté', 'cote')}
             {renderField('N° Extrémité', 'extremite_number')}
             {renderField('Segment', 'segment')}
+            <div className="space-y-2">
+              <Label htmlFor="liaison">Liaison</Label>
+              <Select
+                value={data.liaison_id || ""}
+                onValueChange={(value) => setData({ ...data, liaison_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une liaison" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Aucune liaison</SelectItem>
+                  {liaisons?.map((liaison) => (
+                    <SelectItem key={liaison.id} value={liaison.id}>
+                      {liaison.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
